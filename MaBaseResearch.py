@@ -1,3 +1,20 @@
+#修改记录：2016-8-12
+# 1.添加选股过滤条件：去掉未上市、停牌的个股
+# 2.添加买股过滤条件：去掉涨停、跌停的个股（涨停价与当前市场价的阀值Delta=当前价格的0.05，
+#                     即是如果当前市场价和涨停价相差Delta，则认为该股已经涨停）
+# 3.当前市场价：使用get_price函数，代替data和get_current_data()
+# 如果按分钟回测，get_price更为精准，只是这个API的调用比较耗。
+# 如果按天回测，这个API的数据就是前一天的收盘数据，因此效果跟data和get_current_data()无区别。
+#
+#已知问题：
+# 1. 资金分为十份，理想状态每股一份。但由于个股买进的时候价格的差异，会导致在保持
+#    某个仓位水平的前提下，已经持有10股了。如果这个时候，看好市场，需要提高仓位，就会导致
+#    无法买进，因为这个时候持有的股票已经到达上限。
+#
+#有个奇怪现象：
+# 1.某个时间点，获取到的个股的数据跟交易软件里看到的数据不一样，而且差距很大，但有些时间段又是正确
+#  例如平安银行2016-6-1的数据不一致，2016-7-13的数据一致
+
 Debug_On = True
 
 def PD(level, *msg):
@@ -27,14 +44,11 @@ class MarketInfo:
             self._market_index = marketIndex
             
     def PrintInfo(self):
-        PD(0, 'Market current price: ', self._current_price)
-        PD(0, 'Market Ma 60: ' , self.Ma_60)
-        PD(0, 'Market Ma 20: ' , self.Ma_20)
+        PD(0, '[Market]current price:', self._current_price, 'Ma20: ', self.Ma_20, 'Ma60: ', self.Ma_60)
 
     #实时获取当前大盘市场价
-    def GetCurrentPrice(self):
-        data = get_current_data()
-        self._current_price = data[self._market_index].day_open
+    def GetCurrentPrice(self, context):
+        self._current_price = GetCurrentPrice(self._market_index, context.current_dt)
         return self._current_price
 
     #更新日均线，按天调度
@@ -48,12 +62,19 @@ class StockHandler:
     @staticmethod
     def IsNeedSellOff(position, context, data, MaSamplingDays, stopLossThreshold):
         security = data[position.security]
-        current_price = security.close
+        current_price = GetCurrentPrice(position.security, context.current_dt)
         Ma = security.mavg(MaSamplingDays, 'close')
         flow = position.price - position.avg_cost
 
-        if current_price < Ma: return True
-        if flow < 0 and -flow / position.avg_cost > stopLossThreshold: return True
+        if current_price < Ma: 
+            PD(0, '[IsNeedSellOff] Less then Ma[', MaSamplingDays, ']:', position.security)
+            return True
+        
+        flowPercentage = -flow / position.avg_cost
+        if flow < 0 and flowPercentage > stopLossThreshold: 
+            PD(0, '[IsNeedSellOff] Stop loss hit:', flow, flowPercentage, position.security)
+            return True
+            
         return False
 
     #个股是否符合买入条件
@@ -78,22 +99,52 @@ class StockHandler:
 
     #过滤掉已经持有的股票
     @staticmethod
-    def FilterHoldingStocks(context):
+    def FilterHoldingStocks(targetSecurities, holdingStocks):
         filterResults = []
-        stocks = context.target_securities
-        holdingStocks = context.portfolio.positions
-
-        for stock in stocks:
+        
+        for stock in targetSecurities:
             if not holdingStocks.has_key(stock):
                 filterResults.append(stock)
 
+        if len(targetSecurities) != len(filterResults):
+            PD(0, 'before holding filter:', targetSecurities)
+            PD(0, 'after holding filter:', filterResults)
+            
+        return filterResults
+        
+    @staticmethod
+    def FilterOverHeadLimiteStocks(targetSecurities, context):
+        filterResults = []
+        cd = get_current_data()
+        
+        for stock in targetSecurities:
+            currentPrice = GetCurrentPrice(stock, context.current_dt)
+            high_limit = cd[stock].high_limit
+            low_limit = cd[stock].low_limit
+            
+            #设置涨停（跌停）与当前价格之间的允许波动阀值，为当天开盘价的0.05
+            overHeadDelta = cd[stock].day_open * 0.05
+            
+            #高于涨停、低于跌停价，过滤掉
+            if currentPrice >= high_limit or currentPrice <= low_limit: continue
+        
+            #接近涨停、跌停价、过滤掉
+            if high_limit - currentPrice < overHeadDelta or \
+                currentPrice - low_limit < overHeadDelta: continue
+            
+            filterResults.append(stock)
+
+        if len(targetSecurities) != len(filterResults):
+            PD(0, 'before limit filter:', targetSecurities)
+            PD(0, 'after limit filter:', filterResults)
         return filterResults
     
     #记录交易、下单信息
     @staticmethod
     def RecordOrder(title, msg, orderStatus):
         record(title = orderStatus.amount)
-        log.info(msg ,'[' + orderStatus.security + ']:' , orderStatus.status ,' Amount:', orderStatus.amount)
+        log.info(msg ,'[' + orderStatus.security + ']:' , orderStatus.status ,\
+            ' mount:', orderStatus.amount, 'Price:', orderStatus.price, 'avg_cost:', orderStatus.avg_cost)
 
 #资金管理
 class CapitalManager:
@@ -117,10 +168,10 @@ class CapitalManager:
     def UpdateCapital(self, context):
         cash = context.portfolio.cash
         capital_used = context.portfolio.capital_used
+        portfolio_value = context.portfolio.portfolio_value
         self._currentCapitalPosition = capital_used / (capital_used + cash)
         
-        PD(0, 'Current cash:', cash, ' used:', capital_used)
-        PD(0, 'Current capital position: ', self._currentCapitalPosition)
+        PD(0, 'portfolio: ', portfolio_value, 'Current cash:', cash, 'used:', capital_used, 'position: ', self._currentCapitalPosition)
 
     #检测是否有股票需要止损
     def StopLoss(self, context, data):
@@ -142,15 +193,23 @@ class CapitalManager:
     def OnActionBullishHandle(self, context, data, desirePosition):
         PD(1, 'Bullish: try holding position on: ', desirePosition)
         
+        currentHoldingStocks = len(context.portfolio.positions.values())
+        availShare = self._totalShare - currentHoldingStocks
+        
+        if availShare == 0: 
+            PD(2, 'Full opening position.')
+            self.UpdateCapital(context)
+            return
+        
         self.UpdateCapital(context)
         stocks = context.target_securities
-        currentHoldingStocks = len(context.portfolio.positions.values())
         fillingPosition = desirePosition - self._currentCapitalPosition
         desireTotalOrderCash = (context.portfolio.capital_used + context.portfolio.cash) * fillingPosition
-        orderCashPreStock = desireTotalOrderCash / (self._totalShare - currentHoldingStocks)
+        orderCashPreStock = desireTotalOrderCash / availShare
 
         #过滤掉已经持有的个股
-        backupStocks = StockHandler.FilterHoldingStocks(context)
+        backupStocks = StockHandler.FilterHoldingStocks(context.target_securities, context.portfolio.positions)
+        backupStocks = StockHandler.FilterOverHeadLimiteStocks(backupStocks, context)
         openPositionCount = 0
         #从备选股中，开仓
         for stock in backupStocks:
@@ -175,7 +234,8 @@ class CapitalManager:
         positions = context.portfolio.positions.values()
         
         #根据收益，对持有的个股排序
-        positions.sort(lambda x, y: cmp(x.price - x.avg_cost, y.price - y.avg_cost))
+        positions.sort(lambda x, y: cmp(x.price - x.avg_cost, y.price - y.avg_cost), reverse = True)
+        
         #在保证仓位水平的前提下，优先卖掉获利最多的股票
         self.OnActionStopLossByPosition(positions, context, position)
         #在保证仓位水平的前提下，卖掉需要止损的股票
@@ -209,6 +269,36 @@ class CapitalManager:
             orderStatus = order_target(position.security, 0, MarketOrderStyle())
             if orderStatus:
                 StockHandler.RecordOrder('SellOff', 'SellOff', orderStatus)
+    
+    #卖掉所有盈利的个股
+    def OnActionSellOffOverflowOnly(self, context):
+        positions = context.portfolio.positions.values()
+        
+        #按照盈利排序:大->小
+        positions.sort(lambda x, y: cmp(x.price - x.avg_cost, y.price - y.avg_cost), reverse = True)
+        
+        for position in positions:
+            #如果盈利，清掉
+            if position.price - x.avg_cost > 0:
+                orderStatus = order_target(position.security, 0, MarketOrderStyle())
+                if orderStatus:
+                    StockHandler.RecordOrder('SellOffOverflowOnly', 'SellOffOverflowOnly', orderStatus)
+            else: break
+    
+    #卖掉所有不盈利的个股          
+    def OnActionSellOffLossOnly(self, context):
+        positions = context.portfolio.positions.values()
+        
+        #按照盈利排序： 小->大
+        positions.sort(lambda x, y: cmp(x.price - x.avg_cost, y.price - y.avg_cost))
+        
+        for position in positions:
+            #如果不盈利，清掉
+            if position.price - x.avg_cost < 0:
+                orderStatus = order_target(position.security, 0, MarketOrderStyle())
+                if orderStatus:
+                    StockHandler.RecordOrder('SellOffLossOnly', 'SellOffLossOnly', orderStatus)
+            else: break
 
 #市场信息处理
 class MarketInfoHandler:
@@ -223,7 +313,7 @@ class MarketInfoHandler:
     #根据策略处理市场信息
     def Execute(self, context, data):
         #获取当前最新的市场价格
-        currentMarketPrice = self._marketInfo.GetCurrentPrice()
+        currentMarketPrice = self._marketInfo.GetCurrentPrice(context)
         
         self._marketInfo.PrintInfo()        
 
@@ -231,6 +321,7 @@ class MarketInfoHandler:
         if currentMarketPrice < self._marketInfo.Ma_60:
             PD(1, 'Market price less than Ma60')
             self._capitalManager.OnActionSellOff(context)
+            return
 
         #检测是否有个股需要止损
         self._capitalManager.StopLoss(context, data)
@@ -256,7 +347,11 @@ def GetCurrentMarketCap(security, currrentDate):
     if not df.empty:
         cap = df['market_cap'][0]
         return cap
-    else: return 0
+    else: return -1
+
+def GetCurrentPrice(security, currentData):
+    priceDF = get_price(security, end_date = currentData, frequency = '1m', count = 1)
+    return priceDF.values[0][0]
 
 #获取大盘的days均线
 def GetMarketMaIndexByDay(indexCode, days, field):
@@ -282,17 +377,22 @@ def FilterSecurity(context, data, flowingThresholdMin, flowingThresholdMax, mark
     for security in securities:
         securityData = data[security]
         currentData = get_current_data()
-
+        securityStatus = currentData[security]
         currentPrice = securityData.close
         prePrice = securityData.pre_close
         deltaPrice = currentPrice - prePrice
+        
+        overHeadDelta = currentPrice*0.1
+        
+        #如果是ST或者停牌，过滤掉
+        if securityStatus.is_st or securityStatus.paused: continue
+
         ma20 = data[security].mavg(20, 'close')
         
         #如果当前价格低于20日均线，过滤掉
         #如果涨幅低于flowingThresholdMin或者高于flowingThresholdMax， 过滤掉
-        #如果是ST过滤掉
         if ma20 < currentPrice or deltaPrice < flowingThresholdMin or \
-            deltaPrice > flowingThresholdMax or currentData[security].is_st: continue
+            deltaPrice > flowingThresholdMax: continue
 
         #如果市值低于marketCapMin，过滤掉
         #如果市值高于marketCapMax，过滤掉
@@ -320,7 +420,10 @@ def initialize(context):
 # # 每个单位时间(如果按天回测,则每天调用一次,如果按分钟,则每分钟调用一次)调用一次
 def handle_data(context, data):
     #过滤掉不符合策略的个股
-    context.target_securities = FilterSecurity(context, data, 3, 30, 100, 300)
+    context.target_securities = FilterSecurity(context, data, 1, 100, 0, 300)
+    
+    g.context = context
+    g.data = data
     
     #调试信息，显示符合个股策略的股票
     PD(0, 'Monitor securities:', context.target_securities)
@@ -329,3 +432,4 @@ def handle_data(context, data):
     marketHandler = MarketInfoHandler(XSHG_info, CapitalMgr)
     #执行处理
     marketHandler.Execute(context, data)
+
