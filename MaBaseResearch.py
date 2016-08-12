@@ -256,7 +256,7 @@ def GetCurrentMarketCap(security, currrentDate):
     if not df.empty:
         cap = df['market_cap'][0]
         return cap
-    else: return 0
+    else: return
 
 #获取大盘的days均线
 def GetMarketMaIndexByDay(indexCode, days, field):
