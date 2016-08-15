@@ -66,7 +66,7 @@ class SecuritiesSelectionFilterOption:
 class SecuritiesOrderInFilterOption:
     FilterHoldingSecurities = True  # 是否过滤掉已经持有的个股
 
-    MaSamplingDays = 20  # 个股均线采样时间
+    MaSamplingDays = 6  # 个股均线采样时间
 
     FlowOrderInMin = 1  # 涨幅下限
     FlowOrderInMax = 15  # 涨幅上限
@@ -95,6 +95,21 @@ class CapitalManagerOption:
         self.StopLossThreshold = stopLossThreshold
         self.MaSamplingDaysForStock = maSamplingDaysForStock
         self.TotalOpenPositionPreDay = totalOpenPositionPreDay
+
+
+class OrderRankInfo:
+    Flow = 0
+    Security = ''
+
+    def __init__(self, flow, security):
+        self.Flow = flow
+        self.Security = security
+
+    @staticmethod
+    def PrintList(rankList):
+        if type(rankList) == list:
+            for info in rankList:
+                PD(0, info.Security, info.Flow)
 
 
 # 选股处理（包括选股、买入、卖出）
@@ -148,10 +163,10 @@ class SecuritiesFilter:
             ma = securityData.mavg(self._orderInFilterOpt.MaSamplingDays, 'close')
 
             # 如果当前价格低于MA日均线，过滤掉
-            # 如果涨幅低于flowingThresholdMin或者高于flowingThresholdMax， 过滤掉
+            # 如果涨幅低于FlowOrderInMin或者高于FlowOrderInMax， 过滤掉
             if ma < currentPrice or deltaPrice < self._orderInFilterOpt.FlowOrderInMin or \
                             deltaPrice > self._orderInFilterOpt.FlowOrderInMax: continue
-            PD(0, security, deltaPrice)
+
             target_securities.append(security)
 
         if self._orderInFilterOpt.FilterHoldingSecurities:
@@ -162,8 +177,23 @@ class SecuritiesFilter:
     def OnRankByOrderInOption(self, securities, data, measure=None):
         if securities and len(securities) > 0:
             if measure == None: measure = self._orderInFilterOpt.FlowOrderInDesire
-            securities.sort(lambda x, y: cmp(measure - StockHandler.GetFlowDelta(x, data),
-                                             measure - StockHandler.GetFlowDelta(y, data)), reverse=False)
+
+            flowList = []
+            lossList = []
+            for security in securities:
+                flow = StockHandler.GetFlowDelta(security, data)
+                if flow >= measure:
+                    flowList.append(OrderRankInfo(flow, security))
+                else:
+                    lossList.append(OrderRankInfo(flow, security))
+
+            # 高于测量值：从低到高排序(如：0, 1，2...)
+            flowList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse=False)
+            # 低于测量值：从高到低(如：-1, -2, -3...)
+            lossList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse=True)
+            flowList.extend(lossList)
+
+            return flowList
 
 
 # 大盘信息
@@ -334,7 +364,7 @@ class CapitalManager:
             self.OnActionBullishHandle(context, data, desirePosition)  # 牛市
 
         if self._currentCapitalPosition != desirePosition:
-            PD(1, 'Try holding position failed, desire:', desirePosition, 'current:', self._currentCapitalPosition)
+            PD(1, 'Try holding position FAILED, desire:', desirePosition, 'current:', self._currentCapitalPosition)
 
     # 看涨，
     # @desirePosition：希望保持的仓位水平
@@ -365,21 +395,23 @@ class CapitalManager:
         orderCashPreStock = desireTotalOrderCash / availShare
 
         # 过滤掉已经持有的个股
-        backupStocks = self._securitiesFilter.OnFilterOrderIn(stocks, context.portfolio.positions, context, data)
+        backupSecurities = self._securitiesFilter.OnFilterOrderIn(stocks, context.portfolio.positions, context, data)
 
         # 按照期望的涨幅排序：小->大
-        self._securitiesFilter.OnRankByOrderInOption(backupStocks, data)
-        PD(0, 'Backup order in stocks:', backupStocks)
+        targetSecurities = self._securitiesFilter.OnRankByOrderInOption(backupSecurities, data)
+        PD(0, 'Backup order in stocks:')
+        OrderRankInfo.PrintList(targetSecurities)
 
         openPositionCount = 0
         # 从备选股中，开仓
-        for stock in backupStocks:
+        for info in targetSecurities:
+            security = info.Security
             if openPositionCount >= self.CMOption.TotalOpenPositionPreDay: break
 
             # 按照当前市场价，计算下单的金额
-            finalValue = StockHandler.ClampOrderValue(data, stock, orderCashPreStock, context.portfolio.cash)
+            finalValue = StockHandler.ClampOrderValue(data, security, orderCashPreStock, context.portfolio.cash)
             # 调高下单金额%20, 提高下单成功率，溢出的20%会被自动平掉
-            orderStatus = order_target_value(stock, finalValue * 1.2, MarketOrderStyle())
+            orderStatus = order_target_value(security, finalValue * 1.2, MarketOrderStyle())
             if orderStatus:
                 StockHandler.RecordOrder('OpenPosition', 'OpenPosition', orderStatus)
                 # 如果下单成功，增加开仓计数器，以保证每天的开仓数量
