@@ -1,4 +1,11 @@
 # 修改记录
+# -2016-8-17
+# 1. 修正涨跌幅度的计算，统一使用涨跌幅度的百分比来衡量个股的变化。
+# 2. 分别为是否过滤涨停和跌停设置开关
+# 3. 每次每股买入时，添加仓位检测，避免买入第N股时，仓位过高
+# 4. 调整ClampOrderValue函数，估算100股的总价时，默认溢出20股。
+#    实际交易（必须是100的倍数）会自动平掉该溢出的20股
+#
 # -2016-8-15
 # 1.将买入个股的前提条件从选股的过滤规则中分离出来
 # 2.对所有满足买入条件的个股，按照期望涨幅排序，优先买入符合理想条件的个股。
@@ -49,15 +56,21 @@ def Clamp(value, min, max):
 # 选股策略
 class SecuritiesSelectionFilterOption:
     Filter_ST = True  # 是否过滤ST
-    FilterOverHeat = True  # 是否过滤涨停、跌停的个股
+    FilterLimitUP = True  # 是否过滤涨停的个股
+    FilterLimitDown = False  # 是否过滤跌停的个股
+
+    LimitToleranceInPercentage = 0.01  # 涨跌停价格差与当前价格的百分比
 
     MarketCapitalMin = 0  # 市值下限
     MarketCapitalMax = 3000  # 市值上限
 
-    def __init__(self, filter_ST=True, filterOverHeat=True, \
+    def __init__(self, filter_ST=True, filterLimitUp=True, \
+                 filterLimitDown=False, toleranceInPercentage=0.01, \
                  marketCapitalMin=0, marketCapitalMax=3000):
         self.Filter_ST = filter_ST
-        self.FilterOverHeat = filterOverHeat
+        self.FilterLimitUp = filterLimitUp
+        self.FilterLimitDown = filterLimitDown
+        self.LimitToleranceInPercentage = toleranceInPercentage
         self.MarketCapitalMin = marketCapitalMin
         self.MarketCapitalMax = marketCapitalMax
 
@@ -68,16 +81,18 @@ class SecuritiesOrderInFilterOption:
 
     MaSamplingDays = 6  # 个股均线采样时间
 
-    FlowOrderInMin = 1  # 涨幅下限
-    FlowOrderInMax = 15  # 涨幅上限
-    FlowOrderInDesire = 3  # 希望买进的涨幅点
+    # 百分比数值
+    ChangePercentLow = 1  # 涨幅下限
+    ChangePercentHigh = 15  # 涨幅上限
+    ChangePercentDesire = 3  # 希望买进的涨幅点
 
-    def __init__(self, filterHoldingSecurities=True, maSamplingDays=20, orderInMin=1, orderInMax=15, orderInDesire=3):
+    def __init__(self, filterHoldingSecurities=True, maSamplingDays=20, \
+                 changePercentLow=1, changePercentHigh=15, changePercentDesire=3):
         self.FilterHoldingSecurities = filterHoldingSecurities
         self.MaSamplingDays = maSamplingDays
-        self.FlowOrderInMin = orderInMin
-        self.FlowOrderInMax = orderInMax
-        self.FlowOrderInDesire = orderInDesire
+        self.ChangePercentLow = changePercentLow
+        self.ChangePercentHigh = changePercentHigh
+        self.ChangePercentDesire = changePercentDesire
 
 
 # 资金管理策略
@@ -144,9 +159,8 @@ class SecuritiesFilter:
 
             target_securities.append(security)
 
-        # 是否去掉涨停、跌停的个股
-        if self._selectFilterOpt.FilterOverHeat:
-            target_securities = StockHandler.FilterOverHeadLimiteStocks(target_securities, context)
+        # 根据策略决定是否去掉涨停、跌停的个股
+        target_securities = StockHandler.FilterLimitStocks(target_securities, self._selectFilterOpt, context)
         return target_securities
 
     # 筛选符合买入策略的个股
@@ -157,15 +171,17 @@ class SecuritiesFilter:
             securityData = data[security]
             currentPrice = securityData.close
             prePrice = securityData.pre_close
-            deltaPrice = currentPrice - prePrice
+
+            # 涨跌幅
+            changePercentage = (currentPrice - prePrice) / prePrice * 100
 
             # 均线
             ma = securityData.mavg(self._orderInFilterOpt.MaSamplingDays, 'close')
 
             # 如果当前价格低于MA日均线，过滤掉
-            # 如果涨幅低于FlowOrderInMin或者高于FlowOrderInMax， 过滤掉
-            if ma < currentPrice or deltaPrice < self._orderInFilterOpt.FlowOrderInMin or \
-                            deltaPrice > self._orderInFilterOpt.FlowOrderInMax: continue
+            # 如果涨幅低于或者高于ChangePercentLow/High， 过滤掉
+            if ma < currentPrice or changePercentage < self._orderInFilterOpt.ChangePercentLow or \
+                            changePercentage > self._orderInFilterOpt.ChangePercentHigh: continue
 
             target_securities.append(security)
 
@@ -176,7 +192,7 @@ class SecuritiesFilter:
     # 根据期望的涨幅点对所有符合条件的待买入的个股排序
     def OnRankByOrderInOption(self, securities, data, measure=None):
         if securities and len(securities) > 0:
-            if measure == None: measure = self._orderInFilterOpt.FlowOrderInDesire
+            if measure == None: measure = self._orderInFilterOpt.ChangePercentDesire
 
             flowList = []
             lossList = []
@@ -215,7 +231,7 @@ class MarketInfo:
         PD(0, '[Market]current price:', self._current_price, 'Ma20:', self.Ma_20, 'Ma60:', self.Ma_60)
 
     # 实时获取当前大盘市场价
-    def GetCurrentPrice(self, context):
+    def GetMarketPrice(self, context):
         self._current_price = GetCurrentPrice(self._market_index, context.current_dt)
         return self._current_price
 
@@ -258,12 +274,12 @@ class StockHandler:
 
     # 根据现金流，动态调整下单的金额，使得下单的金额永远满足大于100单（大于100单才能交易）
     @staticmethod
-    def ClampOrderValue(data, security, desireValue, cash):
+    def ClampOrderValue(data, security, desireValue, cash, flow=20):
         if cash < desireValue:
             PD(2, 'Cash no enough: ', cash, ' Desire order: ', desireValue)
             return desireValue
 
-        oneDeal = StockHandler.GetOrderCurrentValue(data, security, 100)
+        oneDeal = StockHandler.GetOrderCurrentValue(data, security, 100 + flow)
         return Clamp(desireValue, oneDeal, cash)
 
     @staticmethod
@@ -282,15 +298,17 @@ class StockHandler:
             if not holdingStocks.has_key(stock):
                 filterResults.append(stock)
 
-        if len(targetSecurities) != len(filterResults):
-            PD(0, 'before holding filter:', targetSecurities)
-            PD(0, 'after holding filter:', filterResults)
+        # if len(targetSecurities) != len(filterResults):
+        #     PD(0, 'before holding filter:', targetSecurities)
+        #     PD(0, 'after holding filter:', filterResults)
 
         return filterResults
 
     # 过滤掉涨停、跌停的个股
     @staticmethod
-    def FilterOverHeadLimiteStocks(targetSecurities, context):
+    def FilterLimitStocks(targetSecurities, filterOption, context):
+        if not filterOption.FilterLimitUp and not filterOption.FilterLimitDown: return targetSecurities
+
         filterResults = []
         cd = get_current_data()
 
@@ -299,15 +317,16 @@ class StockHandler:
             high_limit = cd[stock].high_limit
             low_limit = cd[stock].low_limit
 
-            # 设置涨停（跌停）与当前价格之间的允许波动阀值，为当天开盘价的0.05
-            overHeadDelta = cd[stock].day_open * 0.05
+            # 设置涨停（跌停）与当前价格之间的允许波动阀值，为当天开盘价的0.01
+            tolerance = cd[stock].day_open * filterOption.LimitToleranceInPercentage
 
-            # 高于涨停、低于跌停价，过滤掉
-            if currentPrice >= high_limit or currentPrice <= low_limit: continue
+            # 高于涨停或接近涨停容忍度，过滤掉
+            if filterOption.FilterLimitUp:
+                if currentPrice >= high_limit or high_limit - currentPrice < tolerance: continue
 
-            # 接近涨停、跌停价、过滤掉
-            if high_limit - currentPrice < overHeadDelta or \
-                                    currentPrice - low_limit < overHeadDelta: continue
+            # 低于跌停或接近跌停容忍度，过滤掉
+            if filterOption.FilterLimitDown:
+                if currentPrice <= low_limit or currentPrice - low_limit < tolerance: continue
 
             filterResults.append(stock)
 
@@ -399,19 +418,19 @@ class CapitalManager:
 
         # 按照期望的涨幅排序：小->大
         targetSecurities = self._securitiesFilter.OnRankByOrderInOption(backupSecurities, data)
-        PD(0, 'Backup order in stocks:')
-        OrderRankInfo.PrintList(targetSecurities)
+        # PD(0, 'Backup order in stocks:')
+        # OrderRankInfo.PrintList(targetSecurities)
 
         openPositionCount = 0
         # 从备选股中，开仓
         for info in targetSecurities:
             security = info.Security
+            if self._currentCapitalPosition >= desirePosition: break
             if openPositionCount >= self.CMOption.TotalOpenPositionPreDay: break
 
             # 按照当前市场价，计算下单的金额
             finalValue = StockHandler.ClampOrderValue(data, security, orderCashPreStock, context.portfolio.cash)
-            # 调高下单金额%20, 提高下单成功率，溢出的20%会被自动平掉
-            orderStatus = order_target_value(security, finalValue * 1.2, MarketOrderStyle())
+            orderStatus = order_target_value(security, finalValue, MarketOrderStyle())
             if orderStatus:
                 StockHandler.RecordOrder('OpenPosition', 'OpenPosition', orderStatus)
                 # 如果下单成功，增加开仓计数器，以保证每天的开仓数量
@@ -510,7 +529,7 @@ class MarketInfoHandler:
     # 根据策略处理市场信息
     def Execute(self, context, data):
         # 获取当前最新的市场价格
-        currentMarketPrice = self._marketInfo.GetCurrentPrice(context)
+        currentMarketPrice = self._marketInfo.GetMarketPrice(context)
 
         self._marketInfo.PrintInfo()
 
@@ -575,7 +594,7 @@ def SetupSecurityPool():
 XSHG_info = MarketInfo('000001.XSHG')
 
 # 设置过滤选项
-selectorFilterOption = SecuritiesSelectionFilterOption(True, True, 0, 300)
+selectorFilterOption = SecuritiesSelectionFilterOption(True, True, False, 0.01, 0, 300)
 orderInOption = SecuritiesOrderInFilterOption(True, 20, 1, 50, 3)
 capitalManagerOption = CapitalManagerOption(10, 1, 7.86 * 0.01, 6, 2)
 
