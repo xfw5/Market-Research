@@ -5,6 +5,8 @@
 # 3. 每次每股买入时，添加仓位检测，避免买入第N股时，仓位过高
 # 4. 调整ClampOrderValue函数，估算100股的总价时，默认溢出20股。
 #    实际交易（必须是100的倍数）会自动平掉该溢出的20股
+# 5. 添加WaterLine类，当到达设置的水位时，触发信号，通知监听者某个事件已发生
+# 6. 添加SecurityProfitStatus，监视所持有的个股的盈利状态，并触发相应策略处理事件。
 #
 # -2016-8-15
 # 1.将买入个股的前提条件从选股的过滤规则中分离出来
@@ -59,7 +61,7 @@ class SecuritiesSelectionFilterOption:
     FilterLimitUP = True  # 是否过滤涨停的个股
     FilterLimitDown = False  # 是否过滤跌停的个股
 
-    LimitToleranceInPercentage = 0.01  # 涨跌停价格差与当前价格的百分比
+    LimitToleranceInPercentage = 0.01  # 涨跌停价格差的容忍度：为当前价格的百分比
 
     MarketCapitalMin = 0  # 市值下限
     MarketCapitalMax = 3000  # 市值上限
@@ -112,6 +114,84 @@ class CapitalManagerOption:
         self.TotalOpenPositionPreDay = totalOpenPositionPreDay
 
 
+# 水位,一般用来设置个股的上涨或下跌的警告线
+class WaterLine:
+    Line = 15  # 设置的目标水位
+    IsReverse = False  # 是否反转，默认为False，表示高于设置的水位时，IsHit状态为True，否则低于水位时，才设置IsHit状态
+
+    Active = False  # 激活状态
+    IsHit = False  # 水位是否超过设置的Line
+    HighestHit = Line  # 历史最高水位，辅助信息，用来跟踪某段时间内最高或最低的水位
+
+    def __init__(self, line, isReverse, active):
+        self.Line = line
+        self.IsReverse = isReverse
+        self.IsHit = False
+        self.Active = active
+        self.HighestHit = self.Line
+
+    def Reset(self, active=False):  # 重置水位
+        self.IsHit = False
+        self.Active = active
+        self.HighestHit = self.Line
+
+    def Update(self, newLine):  # 更新水位
+        if self.Active and self.__isHitWithLine(newLine):
+            self.IsHit = True
+            self.__updateHighestHitLine()
+
+    def __isHitWithLine(self, line):  # 私有函数，测试水位是否溢出
+        if self.IsReverse:
+            return line < self.Line
+        else:
+            return line > self.Line
+
+    def __updateHighestHitLine(self, line):  # 私有函数，测试历史最高水位是否需要更新
+        if self.IsReverse:
+            if line < self.HighestHit: self.HighestHit = line
+        else:
+            if line > self.HighestHit: self.HighestHit = line
+
+
+# 个股盈利状态跟踪
+class SecurityProfitStatus:
+    Security = ''  # 个股ID
+
+    HighLimitLine = WaterLine(15, False, True)  # 设置个股盈利最高水位
+    LowLimitLine = WaterLine(10, False, False)  # 设置个股盈利最低水位
+
+    # 当个股盈利到达最高水位后，如果盈利下跌到设置的最低值，发出该信号。
+    _signalRaised = False
+
+    def __init__(self, security, highLine, lowLine):
+        self.Security = security
+        self.HighLimitLine = highLine
+        self.LowLimitLine = lowLine
+
+    def Update(self, profit, clearStatus=False):
+        self.HighLimitLine.Update(profit)
+        if self.HighLimitLine.IsHit:
+            self.LowLimitLine.Active = True
+
+        self.LowLimitLine.Update(profit)
+
+        self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit
+        if self._signalRaised:
+            PD(1, 'Security Profit signal raised:', self.Security)
+        if ClearStatus: self.ClearStatus()
+        return self._signalRaised
+
+    def IsSignalRaisedUp(self, isClear):
+        raised = self._signalRaised
+        if isClear: self.ClearStatus()
+        return raised
+
+    def ClearStatus(self):
+        self.HighLimitLine.Reset(True)
+        self.LowLimitLine.Reset(False)
+
+
+# 自定义的个股排名信息
 class OrderRankInfo:
     Flow = 0
     Security = ''
@@ -160,7 +240,7 @@ class SecuritiesFilter:
             target_securities.append(security)
 
         # 根据策略决定是否去掉涨停、跌停的个股
-        target_securities = StockHandler.FilterLimitStocks(target_securities, self._selectFilterOpt, context)
+        target_securities = SecurityHandler.FilterLimitStocks(target_securities, self._selectFilterOpt, context)
         return target_securities
 
     # 筛选符合买入策略的个股
@@ -186,7 +266,7 @@ class SecuritiesFilter:
             target_securities.append(security)
 
         if self._orderInFilterOpt.FilterHoldingSecurities:
-            target_securities = StockHandler.FilterHoldingStocks(target_securities, holdingSecurities)
+            target_securities = SecurityHandler.FilterHoldingStocks(target_securities, holdingSecurities)
         return target_securities
 
     # 根据期望的涨幅点对所有符合条件的待买入的个股排序
@@ -197,7 +277,7 @@ class SecuritiesFilter:
             flowList = []
             lossList = []
             for security in securities:
-                flow = StockHandler.GetFlowDelta(security, data)
+                flow = SecurityHandler.GetFlowDelta(security, data)
                 if flow >= measure:
                     flowList.append(OrderRankInfo(flow, security))
                 else:
@@ -242,10 +322,10 @@ class MarketInfo:
 
 
 # 个股操作
-class StockHandler:
+class SecurityHandler:
     # 个股是否符合卖出条件
     @staticmethod
-    def IsNeedSellOff(position, context, data, MaSamplingDays, stopLossThreshold):
+    def IsNeedSellOff(position, context, data, profitHolder, MaSamplingDays, stopLossThreshold):
         security = data[position.security]
         current_price = GetCurrentPrice(position.security, context.current_dt)
         Ma = security.mavg(MaSamplingDays, 'close')
@@ -259,6 +339,10 @@ class StockHandler:
         if flow < 0 and flowPercentage > stopLossThreshold:
             PD(0, '[IsNeedSellOff] Stop loss hit:', flow, flowPercentage, position.security)
             return True
+
+        profitStatus = profitHolder.get(security)
+        if profitStatus:
+            return profitStatus.Update(flow, True)
 
         return False
 
@@ -279,7 +363,7 @@ class StockHandler:
             PD(2, 'Cash no enough: ', cash, ' Desire order: ', desireValue)
             return desireValue
 
-        oneDeal = StockHandler.GetOrderCurrentValue(data, security, 100 + flow)
+        oneDeal = SecurityHandler.GetOrderCurrentValue(data, security, 100 + flow)
         return Clamp(desireValue, oneDeal, cash)
 
     @staticmethod
@@ -346,6 +430,7 @@ class StockHandler:
 # 资金管理
 class CapitalManager:
     CMOption = CapitalManagerOption()
+    ProfitHolder = {}
     _securitiesFilter = SecuritiesFilter('', '')  # 策略过滤器
 
     _currentCapitalPosition = 0.0  # 当前仓位
@@ -365,6 +450,19 @@ class CapitalManager:
 
         PD(0, 'portfolio: ', portfolio_value, 'Current cash:', cash, 'used:', capital_used, 'position: ',
            self._currentCapitalPosition)
+
+    # 打开盈利监视器
+    def ActiveProfitMonitor(self, positions):
+        securities = positions.values()
+        for security in securities:
+            profitStatus = self.ProfitHolder.get(security)
+            if profitStatus:
+                profitStatus = SecurityProfitStatus()
+                self.ProfitHolder[security] = profitStatus
+
+        for security in self.ProfitHolder.keys():
+            if not positions.has_key(security):
+                del self.ProfitHolder[security]
 
     # 检测是否有股票需要止损
     def StopLoss(self, context, data):
@@ -429,14 +527,15 @@ class CapitalManager:
             if openPositionCount >= self.CMOption.TotalOpenPositionPreDay: break
 
             # 按照当前市场价，计算下单的金额
-            finalValue = StockHandler.ClampOrderValue(data, security, orderCashPreStock, context.portfolio.cash)
+            finalValue = SecurityHandler.ClampOrderValue(data, security, orderCashPreStock, context.portfolio.cash)
             orderStatus = order_target_value(security, finalValue, MarketOrderStyle())
             if orderStatus:
-                StockHandler.RecordOrder('OpenPosition', 'OpenPosition', orderStatus)
+                SecurityHandler.RecordOrder('OpenPosition', 'OpenPosition', orderStatus)
                 # 如果下单成功，增加开仓计数器，以保证每天的开仓数量
                 if orderStatus.status == OrderStatus.held:
                     openPositionCount = openPositionCount + 1
                 self.UpdateCapital(context)
+        self.ActiveProfitMonitor(context.portfolio.positions)
 
     # 看跌
     def OnActionBearishHandle(self, context, data, position):
@@ -468,11 +567,11 @@ class CapitalManager:
         while len(positions) > 0:
             position = positions[0]
 
-            if StockHandler.IsNeedSellOff(position, context, data, \
-                                          self.CMOption.MaSamplingDaysForStock, self.CMOption.StopLossThreshold):
+            if SecurityHandler.IsNeedSellOff(position, context, data, self.ProfitHolder, \
+                                             self.CMOption.MaSamplingDaysForStock, self.CMOption.StopLossThreshold):
                 orderStatus = order_target(position.security, 0, MarketOrderStyle())
                 if orderStatus:
-                    StockHandler.RecordOrder('StopLoss', 'StopLoss', orderStatus)
+                    SecurityHandler.RecordOrder('StopLoss', 'StopLoss', orderStatus)
             positions.remove(position)
 
     # 无条件清仓
@@ -480,7 +579,7 @@ class CapitalManager:
         for position in context.portfolio.positions.values():
             orderStatus = order_target(position.security, 0, MarketOrderStyle())
             if orderStatus:
-                StockHandler.RecordOrder('SellOff', 'SellOff', orderStatus)
+                SecurityHandler.RecordOrder('SellOff', 'SellOff', orderStatus)
 
     # 卖掉所有盈利的个股
     def OnActionSellOffOverflowOnly(self, context):
@@ -494,7 +593,7 @@ class CapitalManager:
             if position.price - x.avg_cost > 0:
                 orderStatus = order_target(position.security, 0, MarketOrderStyle())
                 if orderStatus:
-                    StockHandler.RecordOrder('SellOffOverflowOnly', 'SellOffOverflowOnly', orderStatus)
+                    SecurityHandler.RecordOrder('SellOffOverflowOnly', 'SellOffOverflowOnly', orderStatus)
             else:
                 break
 
@@ -510,7 +609,7 @@ class CapitalManager:
             if position.price - x.avg_cost < 0:
                 orderStatus = order_target(position.security, 0, MarketOrderStyle())
                 if orderStatus:
-                    StockHandler.RecordOrder('SellOffLossOnly', 'SellOffLossOnly', orderStatus)
+                    SecurityHandler.RecordOrder('SellOffLossOnly', 'SellOffLossOnly', orderStatus)
             else:
                 break
 
