@@ -1,3 +1,4 @@
+# https://github.com/xfw5/Market-Research/blob/master/MaBaseResearch.py
 # 修改记录
 # -2016-8-17
 # 1. 修正涨跌幅度的计算，统一使用涨跌幅度的百分比来衡量个股的变化。
