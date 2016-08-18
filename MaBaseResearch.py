@@ -38,7 +38,7 @@
 #  例如平安银行2016-6-1的数据不一致，2016-7-13的数据一致
 
 # 性能分析，如果不需要，请屏蔽该行
-enable_profile()
+# enable_profile()
 
 # 调试信息开关
 Debug_On = True
@@ -107,7 +107,7 @@ def Clamp(value, min, max):
 
 # 判断输入值（inputValue）是否在测量值（measure）可以容忍的误差（tolerance）之内
 def IsHit(inputValue, measure, tolerance):
-    return abs(inputValue - measure) < tolerance
+    return abs(inputValue - measure) <= tolerance
 
 
 class CacheInfo:
@@ -595,7 +595,7 @@ class CapitalManager:
         elif self._currentCapitalPosition < desirePosition and isBullish:
             self.OnActionBullishHandle(context, data, desirePosition)  # 牛市
 
-        if IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE):
+        if not IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE):
             PD(1, 'Try holding position FAILED, desire:', desirePosition, 'current:', self._currentCapitalPosition)
 
     # 看涨，
@@ -678,7 +678,7 @@ class CapitalManager:
 
     # 根据期望的仓位平仓
     def OnActionStopLossByPosition(self, positions, context, data, stopLossPoint):
-        while IsHit(self._currentCapitalPosition, stopLossPoint, POSITION_TOLERANCE) and len(positions) > 0:
+        while not IsHit(self._currentCapitalPosition, stopLossPoint, POSITION_TOLERANCE) and len(positions) > 0:
             position = positions[0]
             orderStatus = order_target(position.security, 0, MarketOrderStyle())
             positions.remove(position)
@@ -885,9 +885,6 @@ def initialize(context):
 
 # # 每个单位时间调用一次(如果按天回测,则每天调用一次,如果按分钟,则每分钟调用一次)
 def handle_data(context, data):
-    g.context = context
-    g.data = data
-
     # 每次运行，都必须要清空cache，防止数据过时
     CacheHolder.Cache = {}
     # CacheHolder.CacheMarketCap(context.universe, context.current_dt)
