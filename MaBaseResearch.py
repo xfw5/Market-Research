@@ -1,5 +1,9 @@
 # https://github.com/xfw5/Market-Research/blob/master/MaBaseResearch.py
 # 修改记录：
+# 2016-8-25
+# 1.修正个股盈利状态跟踪
+# 2.修正水位更新问题
+#
 # -2016-8-18
 # 1.引入Cache，解决GetCurrentPrice和GetCurrentMarketCap调用消耗过大的问题，目前性能上提升67%
 # 2.为仓位水平添加误差容忍度
@@ -297,7 +301,6 @@ class WaterLine:
     def Update(self, newLine):  # 更新水位
         if self.Active:
             self.IsHit = self.__isHitWithLine(newLine)
-            PD(2, self.Line, newLine)
             if self.IsHit: 
                 PD(2, 'WaterLine Hit:', self.Line)
                 self.__updateHighestHitLine(newLine)#？？不需要传参数吗，如果是更新了水位那么只要一有低于这个的就会触发
@@ -331,7 +334,7 @@ class SecurityProfitStatus:
         self.HighLimitLine = highLine
         self.LowLimitLine = lowLine
 
-    def Update(self, profit, clearStatus=False):
+    def Update(self, profit, clearStatusIfRaised=False):
         self.HighLimitLine.Update(profit)
         if self.HighLimitLine.IsHit:
             self.LowLimitLine.Active = True
@@ -339,10 +342,10 @@ class SecurityProfitStatus:
         self.LowLimitLine.Update(profit)
 
         self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit#？？这里的逻辑是用哪一个？
+        raised = self._signalRaised
         if self._signalRaised:
             PD(2, 'Security Profit signal raised:', self.Security)
-        raised = self._signalRaised
-        if clearStatus: self.ClearStatus()#if ClearStatus: self.ClearStatus()？？这里的参数好像大小写不对
+            if clearStatusIfRaised: self.ClearStatus()#if ClearStatus: self.ClearStatus()？？这里的参数好像大小写不对
         return raised
 
     def IsSignalRaisedUp(self, isClear):#？？？这个函数没有用上
