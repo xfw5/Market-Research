@@ -1,8 +1,5 @@
-# https://github.com/xfw5/Market-Research/blob/master/MaBaseResearch.py 
+# https://github.com/xfw5/Market-Research/blob/master/MaBaseResearch.py
 # 修改记录：
-# -2016-8-24
-# 1.修正Cache因MarketCap或CurrentPrice存在其中一个时，导致读取cache伪命中的问题。
-#
 # -2016-8-18
 # 1.引入Cache，解决GetCurrentPrice和GetCurrentMarketCap调用消耗过大的问题，目前性能上提升67%
 # 2.为仓位水平添加误差容忍度
@@ -40,52 +37,57 @@
 # 1.某个时间点，获取到的个股的数据跟交易软件里看到的数据不一样，而且差距很大，但有些时间段又是正确
 #  例如平安银行2016-6-1的数据不一致，2016-7-13的数据一致
 
-#性能分析，如果不需要，请屏蔽该行
-#enable_profile()
+# 性能分析，如果不需要，请屏蔽该行
+# enable_profile()
 
 # 调试信息开关
 Debug_On = True
 
-#默认选股策略值
-DEF_FILTER_ST = True #是否过滤ST
-DEF_FILTER_LIMIT_UP = True #是否过滤涨停
-DEF_FILTER_LIMIT_DOWN = False #是否过滤跌停
-DEF_LIMIT_TOLERANCE_PRECENT = 0.01 #涨跌停容忍度
-DEF_MARKET_CAP_MIN = 0 #最低市值
-DEF_MARKET_CAP_MAX = 3000 #最高市值
+#防止噪声阈值
+DEF_NOISE_AVOID = 1
 
-#默认买入策略值
-DEF_FILTER_HOLDING_SECURITIES = True #是否过滤已经持有的个股
-DEF_MA_SAMPLING_DAYS_FOR_SECURITY = 5 #个股均线采样时间
-DEF_CHANGE_PERCENT_LOW = 1 #最低涨幅
-DEF_CHANGE_PERCENT_HIGH = 11 #最高涨幅
-#期望买入涨幅点，优先买入该涨幅点至最高涨幅点之间的个股，
-#如果不足，使用该涨幅点至其次最低涨幅之间的个股来补充。
-DEF_CHANGE_PERCENT_DESIRE = 3 
+# 默认选股策略值
+DEF_FILTER_ST = True  # 是否过滤ST
+DEF_FILTER_LIMIT_UP = True  # 是否过滤涨停
+DEF_FILTER_LIMIT_DOWN = False  # 是否过滤跌停
+DEF_LIMIT_TOLERANCE_PRECENT = 0.01  # 涨跌停容忍度
+DEF_MARKET_CAP_MIN = 0  # 最低市值
+DEF_MARKET_CAP_MAX = 5000  # 最高市值
 
-#默认资金管理策略值
-DEF_CAP_TOTAL_SHARE = 10 #资金总共分为几份
-DEF_CAP_SHARE_PRE_STOCK = 1 #每支股票配多少份
-DEF_CAP_STOPLOSS_THRESHOLD = 5 * 0.01 #个股止损阀值
-DEF_TOTAL_OPENING_POSITION_PRE_DAY = 2 #每次开仓的数量，按多少支个股来衡量
+# 默认买入策略值
+DEF_FILTER_HOLDING_SECURITIES = True  # 是否过滤已经持有的个股
+DEF_MA_SAMPLING_DAYS_FOR_SECURITY = 5  # 个股均线采样时间
+DEF_MA_SAMPLING_DAYS_FOR_SECURITY_BUY = 10 #个股买入均线采样时间
+DEF_CHANGE_PERCENT_LOW = 3  # 最低涨幅
+DEF_CHANGE_PERCENT_HIGH = 11  # 最高涨幅
+# 期望买入涨幅点，优先买入该涨幅点至最高涨幅点之间的个股，
+# 如果不足，使用该涨幅点至其次最低涨幅之间的个股来补充。
+DEF_CHANGE_PERCENT_DESIRE = 5
 
-#默认盈利点信号值
-DEF_PROFIT_LINE_HIGH = 15 #最高盈利点
-DEF_PROFIT_LINE_LOW = 10 #最低盈利点
+# 默认资金管理策略值
+DEF_CAP_TOTAL_SHARE = 10  # 资金总共分为几份
+DEF_CAP_SHARE_PER_STOCK = 1  # 每支股票配多少份
+DEF_CAP_STOPLOSS_THRESHOLD = 5   # 个股止损阀值
+DEF_TOTAL_OPENING_POSITION_PER_DAY = 2  # 每次开仓的数量，按多少支个股来衡量
 
-DEF_WATER_LINE = 15 #默认水位
+# 默认盈利点信号值
+DEF_PROFIT_LINE_HIGH = 15  # 最高盈利点
+DEF_PROFIT_LINE_LOW = 5  # 最低盈利点
 
-#默认大盘策略值
+DEF_WATER_LINE = 8  # 默认水位
+
+# 默认大盘策略值
 DEF_MARKET_INDEX = '000001.XSHG'
-DEF_MARKET_MA_SAMPLING_DAYS_1 = 20 #第一条均线为20日均线
-DEF_MARKET_MA_SAMPLING_DAYS_2 = 60 #第二条均线为60日均线
-DEF_POSITION_IF_MMA_BREAKOUT_LINE1 = 0.6 #突破第一条均线时，保持仓位在6成
-DEF_POSITION_IF_MMA_BREAKOUT_LINE2 = 0.8 #突破第二条均线时，保持仓位在8成
-DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1 = 0.2 #跌破第一条均线，保持仓位在2成
-DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2 = 0.0 #跌破第二条均线，保持仓位在0成
+DEF_MARKET_MA_SAMPLING_DAYS_1 = 20  # 第一条均线为20日均线
+DEF_MARKET_MA_SAMPLING_DAYS_2 = 60  # 第二条均线为60日均线
+DEF_POSITION_IF_MMA_BREAKOUT_LINE1 = 0.6  # 突破第一条均线时，保持仓位在6成
+DEF_POSITION_IF_MMA_BREAKOUT_LINE2 = 0.8  # 突破第二条均线时，保持仓位在8成
+DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1 = 0.2  # 跌破第一条均线，保持仓位在2成
+DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2 = 0.0  # 跌破第二条均线，保持仓位在0成
 
-#仓位误差的容忍阀值
+# 仓位误差的容忍阀值
 POSITION_TOLERANCE = 0.05
+
 
 # 调试信息的级别，级别越高，信息越明显
 def PD(level, *msg):
@@ -97,6 +99,7 @@ def PD(level, *msg):
         elif level == 2:
             log.error(*msg)
 
+
 # 滑动条函数，返回一个处于min和max之间的数。
 def Clamp(value, min, max):
     if value < min:
@@ -105,81 +108,94 @@ def Clamp(value, min, max):
         return max
     return value
 
-#判断输入值（inputValue）是否在测量值（measure）可以容忍的误差（tolerance）之内
+
+# 判断输入值（inputValue）是否在测量值（measure）可以容忍的误差（tolerance）之内
 def IsHit(inputValue, measure, tolerance):
     return abs(inputValue - measure) <= tolerance
 
+
 class CacheType(Enum):
-    Price = 0 
+    Price = 0
     MarketCap = 1
+
 
 class CacheInfo:
     Security = ''
     MakretCap = None
     CurrentPrice = None
-    
-    def __init__(self, security, marketCap = None, currentPrice = None):
+
+    def __init__(self, security, marketCap=None, currentPrice=None):
         self.Security = security
         self.MarketCap = marketCap
         self.CurrentPrice = currentPrice
-        
+
     def GetCache(self, security, cacheType):
-        if cacheType == CacheType.Price: return self.GetCurrentPrice()
-        elif cacheType == CacheType.MarketCap: return self.GetMakretCap()
-        else: PD(2, 'cache type not support!')
-        
+        if cacheType == CacheType.Price:
+            return self.GetCurrentPrice()
+        elif cacheType == CacheType.MarketCap:
+            return self.GetMakretCap()
+        else:
+            PD(2, 'cache type not support!')
+
     def Update(self, cacheType, value):
-        if cacheType == CacheType.Price: self.UpdateCurrentPrice(value)
-        elif cacheType == CacheType.MarketCap: self.UpdateMarketCap(value)
-        else: PD(1, "Cache type only support price and market cap!")
-        
+        if cacheType == CacheType.Price:
+            self.UpdateCurrentPrice(value)
+        elif cacheType == CacheType.MarketCap:
+            self.UpdateMarketCap(value)
+        else:
+            PD(1, "Cache type only support price and market cap!")
+
     def UpdateMarketCap(self, marketCap):
         self.MarketCap = marketCap
-    
+
     def UpdateCurrentPrice(self, price):
         self.CurrentPrice = price
-            
+
     def GetMakretCap(self):
-        return self.MarketCap 
-    
+        return self.MarketCap
+
     def GetCurrentPrice(self):
         return self.CurrentPrice
 
+
 class CacheHandler:
     Cache = {}
-    
+
     def __init__(self):
-        self.Cache = { }
-        
+        self.Cache = {}
+
     def GetCache(self, security, cacheType):
         info = self.Cache.get(security)
-        if info: return info.GetCache(security, cacheType)
-        else: return None
-    
+        if info:
+            return info.GetCache(security, cacheType)
+        else:
+            return None
+
     def AddCache(self, security, cacheType, value):
         info = self.Cache.get(security)
-        if not info: 
+        if not info:
             info = CacheInfo(security)
             info.Update(cacheType, value)
             self.Cache[security] = info
-        else: info.Update(cacheType, value)
-    
+        else:
+            info.Update(cacheType, value)
+
     def CacheCurrentPrice(self, securities, currentDate):
-        panel = get_price(securities, end_date=currentDate, fields = ['close'], frequency='1m', count=1)
+        panel = get_price(securities, end_date=currentDate, fields=['close'], frequency='1d', count=1)
         closePD = panel['close']
         for security in securities:
-            info = self.Cache.get(security)
+            info = self.Cache.get(security)#？？？这里是干什么用的
             if not info: info = CacheInfo(security)
             info.CurrentPrice = closePD[security][0]
-            self.Cache[security] = info
-            
+            self.Cache[security] = info#???为什么info里面已经有了数据还再一次转移一次
+
     def CacheMarketCap(self, securities, currentDate):
         q = query(
             valuation.code, valuation.market_cap
         ).filter(
             valuation.code.in_(securities)
         )
-    
+
         df = get_fundamentals(q, currentDate)
         if not df.empty:
             for oneline in df.values:
@@ -190,22 +206,24 @@ class CacheHandler:
                 info.MarketCap = cap
                 self.Cache[security] = info
 
-CacheHolder = CacheHandler()
 
-#选股策略
+CacheHolder = CacheHandler()#？？？这一句是用来干什么的？程序执行时这么顺序执行下去吗？
+
+
+# 选股策略
 class SecuritiesSelectionFilterOption:
     Filter_ST = DEF_FILTER_ST  # 是否过滤ST
     FilterLimitUP = DEF_FILTER_LIMIT_UP  # 是否过滤涨停的个股
-    FilterLimitDown = DEF_FILTER_LIMIT_DOWN #是否过滤跌停的个股
-    
-    LimitToleranceInPercentage = DEF_LIMIT_TOLERANCE_PRECENT #涨跌停价格差的容忍度：为当前价格的百分比
+    FilterLimitDown = DEF_FILTER_LIMIT_DOWN  # 是否过滤跌停的个股
+
+    LimitToleranceInPercentage = DEF_LIMIT_TOLERANCE_PRECENT  # 涨跌停价格差的容忍度：为当前价格的百分比
 
     MarketCapitalMin = DEF_MARKET_CAP_MIN  # 市值下限
     MarketCapitalMax = DEF_MARKET_CAP_MAX  # 市值上限
 
-    def __init__(self, filter_ST = DEF_FILTER_ST, filterLimitUp = DEF_FILTER_LIMIT_UP, \
-                 filterLimitDown = DEF_FILTER_LIMIT_DOWN, toleranceInPercentage = DEF_LIMIT_TOLERANCE_PRECENT, \
-                 marketCapitalMin = DEF_MARKET_CAP_MIN, marketCapitalMax = DEF_MARKET_CAP_MAX):
+    def __init__(self, filter_ST=DEF_FILTER_ST, filterLimitUp=DEF_FILTER_LIMIT_UP, \
+                 filterLimitDown=DEF_FILTER_LIMIT_DOWN, toleranceInPercentage=DEF_LIMIT_TOLERANCE_PRECENT, \
+                 marketCapitalMin=DEF_MARKET_CAP_MIN, marketCapitalMax=DEF_MARKET_CAP_MAX):
         self.Filter_ST = filter_ST
         self.FilterLimitUp = filterLimitUp
         self.FilterLimitDown = filterLimitDown
@@ -213,166 +231,183 @@ class SecuritiesSelectionFilterOption:
         self.MarketCapitalMin = marketCapitalMin
         self.MarketCapitalMax = marketCapitalMax
 
-#买入策略
+
+# 买入策略
 class SecuritiesOrderInFilterOption:
-    FilterHoldingSecurities = DEF_FILTER_HOLDING_SECURITIES #是否过滤掉已经持有的个股
-    
-    MaSamplingDays = DEF_MA_SAMPLING_DAYS_FOR_SECURITY #个股均线采样时间
-    
-    #百分比数值
+    FilterHoldingSecurities = DEF_FILTER_HOLDING_SECURITIES  # 是否过滤掉已经持有的个股
+
+    MaSamplingDays = DEF_MA_SAMPLING_DAYS_FOR_SECURITY_BUY  # 个股均线采样时间
+
+    # 百分比数值
     ChangePercentLow = DEF_CHANGE_PERCENT_LOW  # 涨幅下限
     ChangePercentHigh = DEF_CHANGE_PERCENT_HIGH  # 涨幅上限
     ChangePercentDesire = DEF_CHANGE_PERCENT_DESIRE  # 希望买进的涨幅点
 
-    def __init__(self, filterHoldingSecurities = DEF_FILTER_HOLDING_SECURITIES, maSamplingDays = DEF_MA_SAMPLING_DAYS_FOR_SECURITY, \
-                 changePercentLow=DEF_CHANGE_PERCENT_LOW, changePercentHigh=DEF_CHANGE_PERCENT_HIGH, changePercentDesire=DEF_CHANGE_PERCENT_DESIRE):
+    def __init__(self, filterHoldingSecurities=DEF_FILTER_HOLDING_SECURITIES,
+                 maSamplingDays=DEF_MA_SAMPLING_DAYS_FOR_SECURITY_BUY, \
+                 changePercentLow=DEF_CHANGE_PERCENT_LOW, changePercentHigh=DEF_CHANGE_PERCENT_HIGH,
+                 changePercentDesire=DEF_CHANGE_PERCENT_DESIRE):
         self.FilterHoldingSecurities = filterHoldingSecurities
         self.MaSamplingDays = maSamplingDays
         self.ChangePercentLow = changePercentLow
         self.ChangePercentHigh = changePercentHigh
         self.ChangePercentDesire = changePercentDesire
 
-#资金管理策略
+
+# 资金管理策略
 class CapitalManagerOption:
     TotalShare = DEF_CAP_TOTAL_SHARE  # 资金分割等份
-    SharesPreStock = DEF_CAP_SHARE_PRE_STOCK  # 按份配股：每支股票配多少份(share)
+    SharesPerStock = DEF_CAP_SHARE_PER_STOCK  # 按份配股：每支股票配多少份(share)
     StopLossThreshold = DEF_CAP_STOPLOSS_THRESHOLD  # 个股止损阀值
     MaSamplingDaysForStock = DEF_MA_SAMPLING_DAYS_FOR_SECURITY  # 个股均线采样时间
-    TotalOpenPositionPreDay = DEF_TOTAL_OPENING_POSITION_PRE_DAY  # 每天最大开仓的数量
+    TotalOpenPositionPerDay = DEF_TOTAL_OPENING_POSITION_PER_DAY  # 每天最大开仓的数量
 
-    def __init__(self, totalShare=DEF_CAP_TOTAL_SHARE, sharesPreStock=DEF_CAP_SHARE_PRE_STOCK, stopLossThreshold=DEF_CAP_STOPLOSS_THRESHOLD, \
-                 maSamplingDaysForStock=DEF_MA_SAMPLING_DAYS_FOR_SECURITY, totalOpenPositionPreDay=DEF_TOTAL_OPENING_POSITION_PRE_DAY):
+    def __init__(self, totalShare=DEF_CAP_TOTAL_SHARE, sharesPerStock=DEF_CAP_SHARE_PER_STOCK,
+                 stopLossThreshold=DEF_CAP_STOPLOSS_THRESHOLD, \
+                 maSamplingDaysForStock=DEF_MA_SAMPLING_DAYS_FOR_SECURITY,
+                 totalOpenPositionPerDay=DEF_TOTAL_OPENING_POSITION_PER_DAY):
         self.TotalShare = totalShare
-        self.SharesPreStock = sharesPreStock
+        self.SharesPerStock = sharesPerStock
         self.StopLossThreshold = stopLossThreshold
         self.MaSamplingDaysForStock = maSamplingDaysForStock
-        self.TotalOpenPositionPreDay = totalOpenPositionPreDay
+        self.TotalOpenPositionPerDay = totalOpenPositionPerDay
 
-#水位,一般用来设置个股的上涨或下跌的警告线
+
+# 水位,一般用来设置个股的上涨或下跌的警告线
 class WaterLine:
-    Line = DEF_WATER_LINE #设置的目标水位
-    IsReverse = False #是否反转，默认为False，表示高于设置的水位时，IsHit状态为True，否则低于水位时，才设置IsHit状态
-    
-    Active = False #激活状态
-    IsHit = False #水位是否超过设置的Line
-    HighestHit = Line #历史最高水位，辅助信息，用来跟踪某段时间内最高或最低的水位
-    
+    Line = DEF_WATER_LINE  # 设置的目标水位15
+    IsReverse = False  # ？？这个参数似乎也没用是否反转，默认为False，表示高于设置的水位时，IsHit状态为True，否则低于水位时，才设置IsHit状态
+
+    Active = False  # 激活状态
+    IsHit = False  # 水位是否超过设置的Line
+    HighestHit = Line  # 历史最高水位，辅助信息，用来跟踪某段时间内最高或最低的水位
+
     def __init__(self, line, isReverse, active):
         self.Line = line
         self.IsReverse = isReverse
         self.IsHit = False
         self.Active = active
         self.HighestHit = self.Line
-    
-    def Reset(self, active = False): #重置水位
+
+    def Reset(self, active=False):  # 重置水位
         self.IsHit = False
         self.Active = active
         self.HighestHit = self.Line
-        
-    def Update(self, newLine): #更新水位
-        if self.Active and self.__isHitWithLine(newLine):
-            self.IsHit = True
-            self.__updateHighestHitLine()
-            
-    def __isHitWithLine(self, line): #私有函数，测试水位是否溢出
-        if self.IsReverse: return line < self.Line
-        else: return line > self.Line
-        
-    def __updateHighestHitLine(self, line): #私有函数，测试历史最高水位是否需要更新
+
+    def Update(self, newLine):  # 更新水位
+        if self.Active:
+            self.IsHit = self.__isHitWithLine(newLine)
+            PD(2, self.Line, newLine)
+            if self.IsHit: 
+                PD(2, 'WaterLine Hit:', self.Line)
+                self.__updateHighestHitLine(newLine)#？？不需要传参数吗，如果是更新了水位那么只要一有低于这个的就会触发
+
+    def __isHitWithLine(self, line):  # 私有函数，测试水位是否溢出
+        if self.IsReverse:
+            return line < self.Line
+        else:
+            return line > self.Line
+
+    def __updateHighestHitLine(self, line):  # 私有函数，测试历史最高水位是否需要更新
         if self.IsReverse:
             if line < self.HighestHit: self.HighestHit = line
         else:
             if line > self.HighestHit: self.HighestHit = line
 
-#个股盈利状态跟踪
+
+# 个股盈利状态跟踪
 class SecurityProfitStatus:
-    Security = '' # 个股ID
-    
-    HighLimitLine = WaterLine(DEF_PROFIT_LINE_HIGH, False, True) #设置个股盈利最高水位
-    LowLimitLine = WaterLine(DEF_PROFIT_LINE_LOW, False, False) #设置个股盈利最低水位
-    
-    #当个股盈利到达最高水位后，如果盈利下跌到设置的最低值，发出该信号。
+    Security = ''  # 个股ID
+
+    HighLimitLine = WaterLine(DEF_PROFIT_LINE_HIGH, False, True)  # 设置个股盈利最高水位
+    LowLimitLine = WaterLine(DEF_PROFIT_LINE_LOW, True, False)  # 设置个股盈利最低水位
+
+    # 当个股盈利到达最高水位后，如果盈利下跌到设置的最低值，发出该信号。
     _signalRaised = False
-    
-    def __init__(self, security, highLine, lowLine):
+
+    def __init__(self, security, highLine = WaterLine(DEF_PROFIT_LINE_HIGH, False, True), 
+                lowLine = WaterLine(DEF_PROFIT_LINE_LOW, True, False)):
         self.Security = security
         self.HighLimitLine = highLine
         self.LowLimitLine = lowLine
-        
-    def Update(self, profit, clearStatus = False):
+
+    def Update(self, profit, clearStatus=False):
         self.HighLimitLine.Update(profit)
         if self.HighLimitLine.IsHit:
             self.LowLimitLine.Active = True
-        
+
         self.LowLimitLine.Update(profit)
-        
-        self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit
+
+        self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit#？？这里的逻辑是用哪一个？
         if self._signalRaised:
-            PD(1, 'Security Profit signal raised:', self.Security)
-        if ClearStatus: self.ClearStatus()
-        return self._signalRaised
-    
-    def IsSignalRaisedUp(self, isClear):
+            PD(2, 'Security Profit signal raised:', self.Security)
+        raised = self._signalRaised
+        if clearStatus: self.ClearStatus()#if ClearStatus: self.ClearStatus()？？这里的参数好像大小写不对
+        return raised
+
+    def IsSignalRaisedUp(self, isClear):#？？？这个函数没有用上
         raised = self._signalRaised
         if isClear: self.ClearStatus()
         return raised
-    
+
     def ClearStatus(self):
         self.HighLimitLine.Reset(True)
-        self.LowLimitLine.Reset(False)
-        
-#自定义的个股排名信息
+        self.LowLimitLine.Reset(False)#？？清了低水位的怎么记录？？
+
+
+# 自定义的个股排名信息
 class OrderRankInfo:
     Flow = 0
     Security = ''
-    
+
     def __init__(self, flow, security):
         self.Flow = flow
         self.Security = security
-    
+
     @staticmethod
     def PrintList(rankList):
         if type(rankList) == list:
             for info in rankList:
                 PD(0, info.Security, info.Flow)
 
-#选股处理（包括选股、买入、卖出）
+
+# 选股处理（包括选股、买入、卖出）
 class SecuritiesFilter:
-    _selectFilterOpt = SecuritiesSelectionFilterOption() #选股
-    _orderInFilterOpt = SecuritiesOrderInFilterOption() #买入
-    
+    _selectFilterOpt = SecuritiesSelectionFilterOption()  # 选股
+    _orderInFilterOpt = SecuritiesOrderInFilterOption()  # 买入？？放在这里是不是多余了？
+
     def __init__(self, selectFilterOption, orderInFilterOption):
         self._selectFilterOpt = selectFilterOption
         self._orderInFilterOpt = orderInFilterOption
 
-    #筛选目标个股
+    # 筛选目标个股
     def OnFilterSelect(self, securities, context, data):
         currrentDate = context.current_dt.strftime("%Y-%m-%d")
         target_securities = []
-    
+
         for security in securities:
-            currentData = get_current_data()
+            currentData = get_current_data()#？？这一句是不是可以放在外面
             securityStatus = currentData[security]
-            
-            #过滤掉停牌的个股
+
+            # 过滤掉停牌的个股
             if securityStatus.paused: continue
 
             # 如果是ST牌，过滤掉
             if self._selectFilterOpt.Filter_ST and securityStatus.is_st: continue
-    
+
             # 如果市值低于marketCapMin，过滤掉
             # 如果市值高于marketCapMax，过滤掉
             currentMarketCap = GetCurrentMarketCap(security, currrentDate)
             if currentMarketCap < self._selectFilterOpt.MarketCapitalMin or \
                             currentMarketCap > self._selectFilterOpt.MarketCapitalMax: continue
-    
+
             target_securities.append(security)
-        
-        #根据策略决定是否去掉涨停、跌停的个股
+
+        # 根据策略决定是否去掉涨停、跌停的个股
         target_securities = SecurityHandler.FilterLimitStocks(target_securities, self._selectFilterOpt, context)
         return target_securities
 
-    #筛选符合买入策略的个股
+    # 筛选符合买入策略的个股
     def OnFilterOrderIn(self, securities, holdingSecurities, context, data):
         target_securities = []
 
@@ -380,52 +415,54 @@ class SecuritiesFilter:
             securityData = data[security]
             currentPrice = securityData.close
             prePrice = securityData.pre_close
-            
-            #涨跌幅
-            changePercentage = (currentPrice - prePrice)/prePrice * 100
-        
-            #均线
+
+            # 涨跌幅
+            changePercentage = (currentPrice - prePrice) / prePrice * 100
+
+            # 均线
             ma = securityData.mavg(self._orderInFilterOpt.MaSamplingDays, 'close')
-    
+
             # 如果当前价格低于MA日均线或高于均线过多，过滤掉
-            if ma < currentPrice or ma > currentPrice * 1.1: continue
-        
+            if currentPrice < ma or currentPrice > ma * 1.1: continue
+            #PD(0, '[IsNeedbuy]currentPrice:',currentPrice,'More then Ma[', self._orderInFilterOpt.MaSamplingDays, ']:', security,ma)
             # 如果涨幅低于或者高于ChangePercentLow/High， 过滤掉
             if changePercentage < self._orderInFilterOpt.ChangePercentLow or \
-                changePercentage > self._orderInFilterOpt.ChangePercentHigh: continue
-
+                            changePercentage > self._orderInFilterOpt.ChangePercentHigh: continue
+            #PD(0, 'stock',security,'ChangePercent', changePercentage)
             target_securities.append(security)
-        
+
         if self._orderInFilterOpt.FilterHoldingSecurities:
             target_securities = SecurityHandler.FilterHoldingStocks(target_securities, holdingSecurities)
         return target_securities
-        
-    #根据期望的涨幅点对所有符合条件的待买入的个股排序
-    def OnRankByOrderInOption(self, securities, data, measure = None):
+
+    # 根据期望的涨幅点对所有符合条件的待买入的个股排序
+    def OnRankByOrderInOption(self, securities, data, measure=None):
         if securities and len(securities) > 0:
             if measure == None: measure = self._orderInFilterOpt.ChangePercentDesire
-            
+
             flowList = []
             lossList = []
             for security in securities:
                 flow = SecurityHandler.GetChangePercent(security, data)
-                if flow >= measure: flowList.append(OrderRankInfo(flow, security))
-                else : lossList.append(OrderRankInfo(flow, security))
-            
-            #高于测量值：从低到高排序(如：0, 1，2...)
-            flowList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse = False)
-            #低于测量值：从高到低(如：-1, -2, -3...)
-            lossList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse = True)
+                if flow >= measure:
+                    flowList.append(OrderRankInfo(flow, security))
+                else:
+                    lossList.append(OrderRankInfo(flow, security))
+
+            # 高于测量值：从低到高排序(如：0, 1，2...)
+            flowList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse=False)
+            # 低于测量值：从高到低(如：-1, -2, -3...)
+            lossList.sort(lambda x, y: cmp(x.Flow, y.Flow), reverse=True)
             flowList.extend(lossList)
-            
+
             return flowList
-            
-        
+
+
 # 大盘信息
 class MarketInfo:
     Ma_1 = 0  # 大盘第一条均线
     Ma_2 = 0  # 大盘第二条均线
-    
+
     MA_SAMPLING_DAYS_1 = DEF_MARKET_MA_SAMPLING_DAYS_1
     MA_SAMPLING_DAYS_2 = DEF_MARKET_MA_SAMPLING_DAYS_2
 
@@ -433,8 +470,8 @@ class MarketInfo:
     _market_index = DEF_MARKET_INDEX  # 大盘指数ID
 
     # 初始化函数，类似C++的构造函数，当声明该类时，自动被调用
-    def __init__(self, marketIndex = DEF_MARKET_INDEX, maSamplingDays_1= DEF_MARKET_MA_SAMPLING_DAYS_1, \
-                    maSamplingDays_2 = DEF_MARKET_MA_SAMPLING_DAYS_2):
+    def __init__(self, marketIndex=DEF_MARKET_INDEX, maSamplingDays_1=DEF_MARKET_MA_SAMPLING_DAYS_1, \
+                 maSamplingDays_2=DEF_MARKET_MA_SAMPLING_DAYS_2):
         # 检测markIndex参数是否是一个basestring类型的实例
         if isinstance(marketIndex, basestring):
             self._market_index = marketIndex
@@ -444,7 +481,7 @@ class MarketInfo:
     # 打印调试信息
     def PrintInfo(self):
         PD(0, '[Market]current price:', self._current_price, 'Ma', self.MA_SAMPLING_DAYS_1, ':', \
-                self.Ma_1, 'Ma', self.MA_SAMPLING_DAYS_2, ':', self.Ma_2)
+           self.Ma_1, 'Ma', self.MA_SAMPLING_DAYS_2, ':', self.Ma_2)
 
     # 实时获取当前大盘市场价
     def GetMarketPrice(self, context):
@@ -463,22 +500,23 @@ class SecurityHandler:
     @staticmethod
     def IsNeedSellOff(position, context, data, profitHolder, MaSamplingDays, stopLossThreshold):
         security = data[position.security]
-        current_price = GetCurrentPrice(position.security, context.current_dt)
+        current_price = GetCurrentPrice(position.security, context.current_dt)#???这里获取的currentprice竟然有时是0
+        if not current_price: current_price = position.price
         Ma = security.mavg(MaSamplingDays, 'close')
-        flow = position.price - position.avg_cost
+        flow = (position.price - position.avg_cost)/position.avg_cost*100#？？为什么不用current_price来算？
 
-        if current_price < Ma:
-            PD(0, '[IsNeedSellOff] Less then Ma[', MaSamplingDays, ']:', position.security)
+        if current_price < Ma and flow > DEF_NOISE_AVOID:#破均线并且过滤均线太近造成今天买明天卖的噪声干扰
+            PD(0, '[IsNeedSellOff] Less then Ma[', MaSamplingDays, ']:', position.security,\
+                    'currentPrice',current_price,'position.price',position.price,'costPrice', position.avg_cost,'Ma', Ma)
             return True
 
-        flowPercentage = -flow / position.avg_cost
-        if flow < 0 and flowPercentage > stopLossThreshold:
-            PD(0, '[IsNeedSellOff] Stop loss hit:', flow, flowPercentage, position.security)
+        if flow < 0 and -flow >=stopLossThreshold:
+            PD(0, '[IsNeedSellOff] Stop loss hit:', flow, position.security)
             return True
-
-        profitStatus = profitHolder.get(security)
+        
+        profitStatus = profitHolder.get(position.security)
         if profitStatus:
-            return profitStatus.Update(flow, True)
+            return profitStatus.Update(flow, True)#？？这里对应的是哪里
 
         return False
 
@@ -486,7 +524,6 @@ class SecurityHandler:
     @staticmethod
     def IsNeedOrderIn(context, data, stockCode, MaSamplingDays, flowingThresholdMin, flowingThresholdMax):
         return True
-            
 
     # 按照当前市场价计算购买个股Amount数量所需要的资金
     @staticmethod
@@ -495,20 +532,20 @@ class SecurityHandler:
 
     # 根据现金流，动态调整下单的金额，使得下单的金额永远满足大于100单（大于100单才能交易）
     @staticmethod
-    def ClampOrderValue(data, security, desireValue, cash, flow = 20):
+    def ClampOrderValue(data, security, desireValue, cash, flow=10):#flow用来做什么？只加20没有用的，甚至会导致交易失败
         if cash < desireValue:
             PD(2, 'Cash no enough: ', cash, ' Desire order: ', desireValue)
             return desireValue
 
         oneDeal = SecurityHandler.GetOrderCurrentValue(data, security, 100 + flow)
         return Clamp(desireValue, oneDeal, cash)
-    
+
     @staticmethod
     def GetChangePercent(security, data):
         securityData = data[security]
         currentPrice = securityData.close
         prePrice = securityData.pre_close
-        return (currentPrice - prePrice)/prePrice * 100
+        return (currentPrice - prePrice) / prePrice * 100
 
     # 过滤掉已经持有的股票
     @staticmethod
@@ -529,7 +566,7 @@ class SecurityHandler:
     @staticmethod
     def FilterLimitStocks(targetSecurities, filterOption, context):
         if not filterOption.FilterLimitUp and not filterOption.FilterLimitDown: return targetSecurities
-        
+
         filterResults = []
         cd = get_current_data()
 
@@ -544,7 +581,7 @@ class SecurityHandler:
             # 高于涨停或接近涨停容忍度，过滤掉
             if filterOption.FilterLimitUp:
                 if currentPrice >= high_limit or high_limit - currentPrice < tolerance: continue
-            
+
             # 低于跌停或接近跌停容忍度，过滤掉
             if filterOption.FilterLimitDown:
                 if currentPrice <= low_limit or currentPrice - low_limit < tolerance: continue
@@ -568,13 +605,13 @@ class SecurityHandler:
 class CapitalManager:
     CMOption = CapitalManagerOption()
     ProfitHolder = {}
-    _securitiesFilter = SecuritiesFilter('', '') #策略过滤器
+    _securitiesFilter = SecuritiesFilter('', '')  # 策略过滤器
 
     _currentCapitalPosition = 0.0  # 当前仓位
 
     def __init__(self, managerOption, securitiesFilter):
         if isinstance(managerOption, CapitalManagerOption) and \
-           isinstance(securitiesFilter, SecuritiesFilter):
+                isinstance(securitiesFilter, SecuritiesFilter):
             self.CMOption = managerOption
             self._securitiesFilter = securitiesFilter
 
@@ -588,15 +625,15 @@ class CapitalManager:
         PD(0, 'portfolio: ', portfolio_value, 'Current cash:', cash, 'used:', capital_used, 'position: ',
            self._currentCapitalPosition)
 
-    #打开盈利监视器
+    # 打开盈利监视器
     def ActiveProfitMonitor(self, positions):
-        securities = positions.values()
-        for security in securities:
+        for position in positions.values():
+            security = position.security
             profitStatus = self.ProfitHolder.get(security)
-            if profitStatus:
-                profitStatus = SecurityProfitStatus()
+            if not profitStatus:
+                profitStatus = SecurityProfitStatus(security)
                 self.ProfitHolder[security] = profitStatus
-            
+
         for security in self.ProfitHolder.keys():
             if not positions.has_key(security):
                 del self.ProfitHolder[security]
@@ -612,11 +649,11 @@ class CapitalManager:
     def TryHoldingOnPosition(self, context, data, desirePosition, isBullish):
         self.UpdateCapital(context)
 
-        if self._currentCapitalPosition > desirePosition and isBullish == False:
+        if self._currentCapitalPosition > desirePosition and isBullish == False:#??isbullis这里是要什么用意
             self.OnActionBearishHandle(context, data, desirePosition)  # 熊市
         elif self._currentCapitalPosition < desirePosition and isBullish:
             self.OnActionBullishHandle(context, data, desirePosition)  # 牛市
-        
+
         if not IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE):
             PD(1, 'Try holding position FAILED, desire:', desirePosition, 'current:', self._currentCapitalPosition)
 
@@ -641,44 +678,50 @@ class CapitalManager:
 
         # 取得符合买进条件的所有个股
         stocks = context.target_securities
-        if len(stocks) <= 0: return
-        
+        if len(stocks) <= 0:
+            PD(1, 'No target stocks buy!!!!! ')
+            return
+
         # 计算应该需要补多少仓
         fillingPosition = desirePosition - self._currentCapitalPosition
         # 计算该次补仓所需要的资金
-        desireTotalOrderCash = (context.portfolio.capital_used + context.portfolio.cash) * fillingPosition
+        desireTotalOrderCash = (context.portfolio.capital_used + context.portfolio.cash)/self.CMOption.TotalShare * fillingPosition#这里应该不对
         # 计算每股的平均资金
-        orderCashPreStock = desireTotalOrderCash / self.CMOption.TotalOpenPositionPreDay
+        orderCashPerStock = desireTotalOrderCash / fillingPosition*self.CMOption.SharesPerStock#这里也不对，不是只能开仓两只，是只能开仓两成
 
         # 过滤掉已经持有的个股
         backupSecurities = self._securitiesFilter.OnFilterOrderIn(stocks, context.portfolio.positions, context, data)
-        
-        #如果没有符合条件的个股，直接返回
-        if len(backupSecurities) <= 0: return
-        
-        #按照期望的涨幅排序：小->大
+
+        # 如果没有符合条件的个股，直接返回
+        if len(backupSecurities) <= 0:
+            PD(1, 'No target stocks buy at the end!!!!! ')
+            return
+
+        # 按照期望的涨幅排序：小->大
         targetSecurities = self._securitiesFilter.OnRankByOrderInOption(backupSecurities, data)
-        #PD(0, 'Backup order in stocks:')
-        #OrderRankInfo.PrintList(targetSecurities)
-        
+        # PD(0, 'Backup order in stocks:')
+        # OrderRankInfo.PrintList(targetSecurities)
+
         openPositionCount = 0
         # 从备选股中，开仓
         for info in targetSecurities:
             security = info.Security
-            #如果达到或接近仓位水平
-            if IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE): break 
-            #如果达到开仓数量，而仓位还没有满足要求
-            if openPositionCount >= self.CMOption.TotalOpenPositionPreDay: 
-                PD(1, 'Opening position has reached max setting, but capital position still under require:', self._currentCapitalPosition)
+            # 如果达到或接近仓位水平
+            if IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE): break
+            # 如果达到开仓数量，而仓位还没有满足要求
+            if openPositionCount >= self.CMOption.TotalOpenPositionPerDay:#？？这里没有break，跟原有的策略本意不同
+                PD(1, 'Opening position has reached max setting, but capital position still under require:',
+                   self._currentCapitalPosition)
 
             # 按照当前市场价，计算下单的金额
-            finalValue = SecurityHandler.ClampOrderValue(data, security, orderCashPreStock, context.portfolio.cash)
+            finalValue = SecurityHandler.ClampOrderValue(data, security, orderCashPerStock, context.portfolio.cash)
             orderStatus = order_target_value(security, finalValue, MarketOrderStyle())
             if orderStatus:
                 SecurityHandler.RecordOrder('OpenPosition', 'OpenPosition', orderStatus)
                 # 如果下单成功，增加开仓计数器，以保证每天的开仓数量
                 if orderStatus.status == OrderStatus.held:
                     openPositionCount = openPositionCount + 1
+                    PD(0, 'Open new position,new positions:',openPositionCount)
                 self.UpdateCapital(context)
         self.ActiveProfitMonitor(context.portfolio.positions)
 
@@ -707,13 +750,13 @@ class CapitalManager:
 
     # 平掉所有需要止损的个股
     def OnActionStopLoss(self, positions, context, data):
-        PD(0, 'OnActionStopLoss')
+        PD(0, 'OnActionStopLoss！！！')
 
         while len(positions) > 0:
             position = positions[0]
 
             if SecurityHandler.IsNeedSellOff(position, context, data, self.ProfitHolder, \
-                                          self.CMOption.MaSamplingDaysForStock, self.CMOption.StopLossThreshold):
+                                             self.CMOption.MaSamplingDaysForStock, self.CMOption.StopLossThreshold):
                 orderStatus = order_target(position.security, 0, MarketOrderStyle())
                 if orderStatus:
                     SecurityHandler.RecordOrder('StopLoss', 'StopLoss', orderStatus)
@@ -758,23 +801,24 @@ class CapitalManager:
             else:
                 break
 
+
 # 市场信息处理
-class MarketInfoHandler:
+class MarketInfoHandler:#？？？看过了没问题
     _marketInfo = MarketInfo('')  # 大盘信息
-    _capitalManager = CapitalManager('', '')  # 资金管理
+    _capitalManager = CapitalManager('', '')  # 资金管理？？例如这里的初始化和下面的初始化函数到底哪个是最后起作用的
 
     PositionIfBreakoutLine1 = DEF_POSITION_IF_MMA_BREAKOUT_LINE1
     PositionIfBreakoutLine2 = DEF_POSITION_IF_MMA_BREAKOUT_LINE2
-    PositionIfFallingdownLine1 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1
+    PositionIfFallingdownLine1 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1#????程序并没有对策略的这部分做处理
     PositionIfFallingdownLine2 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2
 
-    def __init__(self, market, capitalManager, 
-                positionIfBreakoutLine1 = DEF_POSITION_IF_MMA_BREAKOUT_LINE1, \
-                positionIfBreakoutLine2 = DEF_POSITION_IF_MMA_BREAKOUT_LINE2, \
-                positionIfFallingdownLine1 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1, \
-                positionIfFallingdownLine2 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2):
+    def __init__(self, market, capitalManager,
+                 positionIfBreakoutLine1=DEF_POSITION_IF_MMA_BREAKOUT_LINE1, \
+                 positionIfBreakoutLine2=DEF_POSITION_IF_MMA_BREAKOUT_LINE2, \
+                 positionIfFallingdownLine1=DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1, \
+                 positionIfFallingdownLine2=DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2):
         if isinstance(market, MarketInfo) and \
-           isinstance(capitalManager, CapitalManager):
+                isinstance(capitalManager, CapitalManager):#为啥这要判断？？？
             self._marketInfo = market
             self._capitalManager = capitalManager
             self.PositionIfBreakoutLine1 = positionIfBreakoutLine1
@@ -791,36 +835,38 @@ class MarketInfoHandler:
 
         # 如果当前市场价格低于大盘第一条和第二条均线，无条件清仓
         if currentMarketPrice < self._marketInfo.Ma_2 and \
-           currentMarketPrice < self._marketInfo.Ma_1:
+                        currentMarketPrice < self._marketInfo.Ma_1:
             PD(1, 'Market price less than both MA line1 and line2')
             self._capitalManager.OnActionSellOff(context)
             return
 
-        # 检测是否有个股需要止损
+        # 检测是否有个股需要止损或者止盈
         self._capitalManager.StopLoss(context, data)
 
-        # 如果当前市场价格处于第一条和第二条均线之间，保持仓位在6成
         if currentMarketPrice >= self._marketInfo.Ma_1 and \
-           currentMarketPrice <= self._marketInfo.Ma_2:
-            PD(1, 'Market prices between MA line1 and line2')
-            self._capitalManager.TryHoldingOnPosition(context, data, self.PositionIfBreakoutLine1, True)
-
-        if currentMarketPrice >= self._marketInfo.Ma_1 and \
-           currentMarketPrice >= self._marketInfo.Ma_2:
+                        currentMarketPrice >= self._marketInfo.Ma_2:
             PD(1, 'Market prices bigger than both Ma line1 and line2')
             self._capitalManager.TryHoldingOnPosition(context, data, self.PositionIfBreakoutLine2, True)
 
+        # 如果当前市场价格处于第一条和第二条均线之间，保持仓位在6成
+        if currentMarketPrice >= self._marketInfo.Ma_1 or \
+                        currentMarketPrice >= self._marketInfo.Ma_2:
+            PD(1, 'Market prices between MA line1 and line2')
+            self._capitalManager.TryHoldingOnPosition(context, data, self.PositionIfBreakoutLine1, True)
+
 # 获取个股的市值
 def GetCurrentMarketCap(security, currrentDate):
-    #先从Cache中读取
+    # 先从Cache中读取
     cacheInfo = CacheHolder.GetCache(security, CacheType.MarketCap)
-    #如果cache没有命中
+    # 如果cache没有命中
     if cacheInfo == None:
         cap = GetCurrentMarketCapDir(security, currrentDate)
         CacheHolder.AddCache(security, CacheType.MarketCap, cap)
         return cap
-    else: return cacheInfo
-        
+    else:
+        return cacheInfo
+
+
 def GetCurrentMarketCapDir(security, currentDate):
     q = query(
         valuation.market_cap
@@ -835,20 +881,22 @@ def GetCurrentMarketCapDir(security, currentDate):
     else:
         return -1
 
-#获取当前价格
+
+# 获取当前价格
 def GetCurrentPrice(security, currentData):
-    #先从Cache中读取
+    # 先从Cache中读取
     cacheInfo = CacheHolder.GetCache(security, CacheType.Price)
-    #如果cache没有命中
+    # 如果cache没有命中
     if cacheInfo == None:
-        #查询
-        priceDF = get_price(security, end_date=currentData, frequency='1m', count=1)
+        # 查询
+        priceDF = get_price(security, end_date=currentData, frequency='1d', count=1)
         price = priceDF.values[0][0]
-        #将该次查询结果写进cache中
+        # 将该次查询结果写进cache中
         CacheHolder.AddCache(security, CacheType.Price, price)
         return price
     else:
         return cacheInfo
+
 
 # 获取大盘的days均线
 def GetMarketMaIndexByDay(indexCode, days, field):
@@ -863,21 +911,23 @@ def GetIndustryOrder(industryCode):
 
 # 设置策略监控的security：市场所有股票
 def SetupSecurityPool():
-    securities = get_index_stocks('000300.XSHG')# get_all_securities(types=['stock']).index
+    securities = get_index_stocks('000300.XSHG')  # get_all_securities(types=['stock']).index
     set_universe(securities)
+
 
 # 大盘：上证指数
 XSHG_info = MarketInfo(DEF_MARKET_INDEX)
 
 # 设置过滤选项
-selectorFilterOption = SecuritiesSelectionFilterOption()
+selectorFilterOption = SecuritiesSelectionFilterOption()#？？为什么要设置在这里？
 orderInOption = SecuritiesOrderInFilterOption()
 capitalManagerOption = CapitalManagerOption()
 
-#定义全局过滤规则
-SecFilter = SecuritiesFilter(selectorFilterOption, orderInOption)
-#定义全局资金管理
+# 定义全局过滤规则
+SecFilter = SecuritiesFilter(selectorFilterOption, orderInOption)#？？？这样的出来的是什么对于一个类这么处理是怎么个运行步骤，还有一个程序的运行步骤
+# 定义全局资金管理
 CapitalMgr = CapitalManager(capitalManagerOption, SecFilter)
+
 
 # 更新大盘MA均线
 def RefreshMarketInfo(context):
@@ -891,27 +941,27 @@ def initialize(context):
     # 每天开盘前，按天更新大盘MA均线信息
     run_daily(RefreshMarketInfo, time='before_open')
 
-    cashofOneHandPreSecuirty = context.portfolio.starting_cash / capitalManagerOption.TotalShare * capitalManagerOption.SharesPreStock
-
-    #为了使得资金的仓位水平保持良好，要求每手（100一手）买入个股的资金大于500*100
-    if cashofOneHandPreSecuirty < 500 * 100:
+    cashofOneHandPerSecuirty = context.portfolio.starting_cash / capitalManagerOption.TotalShare * capitalManagerOption.SharesPerStock
+    #????这里初始化这个似乎没有用？？是为了处理检验资金吗？
+    # 为了使得资金的仓位水平保持良好，要求每手（100一手）买入个股的资金大于500*100
+    if cashofOneHandPerSecuirty < 500 * 100:
         log.warn('starting cash less then 100*10000!')
+
 
 # # 每个单位时间调用一次(如果按天回测,则每天调用一次,如果按分钟,则每分钟调用一次)
 def handle_data(context, data):
-    #每次运行，都必须要清空cache，防止数据过时
+    # 每次运行，都必须要清空cache，防止数据过时
     CacheHolder.Cache = {}
-    #CacheHolder.CacheMarketCap(context.universe, context.current_dt)
-    #CacheHolder.CacheCurrentPrice(context.universe, context.current_dt)
+    # CacheHolder.CacheMarketCap(context.universe, context.current_dt)
+    # CacheHolder.CacheCurrentPrice(context.universe, context.current_dt)
 
     # 过滤掉不符合策略的个股
     context.target_securities = SecFilter.OnFilterSelect(context.universe, context, data)
 
     # 调试信息，显示符合个股策略的股票
-    #PD(0, 'Monitor securities:', context.target_securities)
+    # PD(0, 'Monitor securities:', context.target_securities)
 
     # 初始化市场信息
     marketHandler = MarketInfoHandler(XSHG_info, CapitalMgr)
     # 执行处理
     marketHandler.Execute(context, data)
-    
