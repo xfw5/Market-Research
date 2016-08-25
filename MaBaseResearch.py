@@ -1,8 +1,7 @@
 # https://github.com/xfw5/Market-Research/blob/master/MaBaseResearch.py
 # 修改记录：
-# 2016-8-25
-# 1.修正个股盈利状态跟踪
-# 2.修正水位更新问题
+# -2016-8-25
+# 1.解决SecurityProfitStatus默认构造函数公用同一内存地址的问题
 #
 # -2016-8-18
 # 1.引入Cache，解决GetCurrentPrice和GetCurrentMarketCap调用消耗过大的问题，目前性能上提升67%
@@ -47,7 +46,7 @@
 # 调试信息开关
 Debug_On = True
 
-#防止噪声阈值
+# 防止噪声阈值
 DEF_NOISE_AVOID = 1
 
 # 默认选股策略值
@@ -61,7 +60,7 @@ DEF_MARKET_CAP_MAX = 5000  # 最高市值
 # 默认买入策略值
 DEF_FILTER_HOLDING_SECURITIES = True  # 是否过滤已经持有的个股
 DEF_MA_SAMPLING_DAYS_FOR_SECURITY = 5  # 个股均线采样时间
-DEF_MA_SAMPLING_DAYS_FOR_SECURITY_BUY = 10 #个股买入均线采样时间
+DEF_MA_SAMPLING_DAYS_FOR_SECURITY_BUY = 10  # 个股买入均线采样时间
 DEF_CHANGE_PERCENT_LOW = 3  # 最低涨幅
 DEF_CHANGE_PERCENT_HIGH = 11  # 最高涨幅
 # 期望买入涨幅点，优先买入该涨幅点至最高涨幅点之间的个股，
@@ -71,7 +70,7 @@ DEF_CHANGE_PERCENT_DESIRE = 5
 # 默认资金管理策略值
 DEF_CAP_TOTAL_SHARE = 10  # 资金总共分为几份
 DEF_CAP_SHARE_PER_STOCK = 1  # 每支股票配多少份
-DEF_CAP_STOPLOSS_THRESHOLD = 5   # 个股止损阀值
+DEF_CAP_STOPLOSS_THRESHOLD = 5  # 个股止损阀值
 DEF_TOTAL_OPENING_POSITION_PER_DAY = 2  # 每次开仓的数量，按多少支个股来衡量
 
 # 默认盈利点信号值
@@ -188,10 +187,10 @@ class CacheHandler:
         panel = get_price(securities, end_date=currentDate, fields=['close'], frequency='1d', count=1)
         closePD = panel['close']
         for security in securities:
-            info = self.Cache.get(security)#？？？这里是干什么用的
+            info = self.Cache.get(security)  # ？？？这里是干什么用的
             if not info: info = CacheInfo(security)
             info.CurrentPrice = closePD[security][0]
-            self.Cache[security] = info#???为什么info里面已经有了数据还再一次转移一次
+            self.Cache[security] = info  # ???为什么info里面已经有了数据还再一次转移一次
 
     def CacheMarketCap(self, securities, currentDate):
         q = query(
@@ -211,7 +210,7 @@ class CacheHandler:
                 self.Cache[security] = info
 
 
-CacheHolder = CacheHandler()#？？？这一句是用来干什么的？程序执行时这么顺序执行下去吗？
+CacheHolder = CacheHandler()  # ？？？这一句是用来干什么的？程序执行时这么顺序执行下去吗？
 
 
 # 选股策略
@@ -298,12 +297,12 @@ class WaterLine:
         self.Active = active
         self.HighestHit = self.Line
 
-    def Update(self, newLine):  # 更新水位
+    def Update(self, security, newLine):  # 更新水位
         if self.Active:
             self.IsHit = self.__isHitWithLine(newLine)
-            if self.IsHit: 
-                PD(2, 'WaterLine Hit:', self.Line)
-                self.__updateHighestHitLine(newLine)#？？不需要传参数吗，如果是更新了水位那么只要一有低于这个的就会触发
+            if self.IsHit:
+                PD(2, security, 'WaterLine Hit:', self.Line)
+                self.__updateHighestHitLine(newLine)  # ？？不需要传参数吗，如果是更新了水位那么只要一有低于这个的就会触发
 
     def __isHitWithLine(self, line):  # 私有函数，测试水位是否溢出
         if self.IsReverse:
@@ -328,34 +327,34 @@ class SecurityProfitStatus:
     # 当个股盈利到达最高水位后，如果盈利下跌到设置的最低值，发出该信号。
     _signalRaised = False
 
-    def __init__(self, security, highLine = WaterLine(DEF_PROFIT_LINE_HIGH, False, True), 
-                lowLine = WaterLine(DEF_PROFIT_LINE_LOW, True, False)):
+    def __init__(self, security, highLine, lowLine):
         self.Security = security
         self.HighLimitLine = highLine
         self.LowLimitLine = lowLine
 
     def Update(self, profit, clearStatusIfRaised=False):
-        self.HighLimitLine.Update(profit)
+        self.HighLimitLine.Update(self.Security, profit)
         if self.HighLimitLine.IsHit:
             self.LowLimitLine.Active = True
 
-        self.LowLimitLine.Update(profit)
+        PD(2, self.Security, self.HighLimitLine.IsReverse, self.LowLimitLine.IsReverse, self.LowLimitLine.Active)
+        self.LowLimitLine.Update(self.Security, profit)
 
-        self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit#？？这里的逻辑是用哪一个？
+        self._signalRaised = not self.HighLimitLine.IsHit and self.LowLimitLine.IsHit  # ？？这里的逻辑是用哪一个？
         raised = self._signalRaised
         if self._signalRaised:
             PD(2, 'Security Profit signal raised:', self.Security)
-            if clearStatusIfRaised: self.ClearStatus()#if ClearStatus: self.ClearStatus()？？这里的参数好像大小写不对
+            if clearStatusIfRaised: self.ClearStatus()  # if ClearStatus: self.ClearStatus()？？这里的参数好像大小写不对
         return raised
 
-    def IsSignalRaisedUp(self, isClear):#？？？这个函数没有用上
+    def IsSignalRaisedUp(self, isClear):  # ？？？这个函数没有用上
         raised = self._signalRaised
         if isClear: self.ClearStatus()
         return raised
 
     def ClearStatus(self):
         self.HighLimitLine.Reset(True)
-        self.LowLimitLine.Reset(False)#？？清了低水位的怎么记录？？
+        self.LowLimitLine.Reset(False)  # ？？清了低水位的怎么记录？？
 
 
 # 自定义的个股排名信息
@@ -389,7 +388,7 @@ class SecuritiesFilter:
         target_securities = []
 
         for security in securities:
-            currentData = get_current_data()#？？这一句是不是可以放在外面
+            currentData = get_current_data()  # ？？这一句是不是可以放在外面
             securityStatus = currentData[security]
 
             # 过滤掉停牌的个股
@@ -427,11 +426,11 @@ class SecuritiesFilter:
 
             # 如果当前价格低于MA日均线或高于均线过多，过滤掉
             if currentPrice < ma or currentPrice > ma * 1.1: continue
-            #PD(0, '[IsNeedbuy]currentPrice:',currentPrice,'More then Ma[', self._orderInFilterOpt.MaSamplingDays, ']:', security,ma)
+            # PD(0, '[IsNeedbuy]currentPrice:',currentPrice,'More then Ma[', self._orderInFilterOpt.MaSamplingDays, ']:', security,ma)
             # 如果涨幅低于或者高于ChangePercentLow/High， 过滤掉
             if changePercentage < self._orderInFilterOpt.ChangePercentLow or \
                             changePercentage > self._orderInFilterOpt.ChangePercentHigh: continue
-            #PD(0, 'stock',security,'ChangePercent', changePercentage)
+            # PD(0, 'stock',security,'ChangePercent', changePercentage)
             target_securities.append(security)
 
         if self._orderInFilterOpt.FilterHoldingSecurities:
@@ -503,23 +502,24 @@ class SecurityHandler:
     @staticmethod
     def IsNeedSellOff(position, context, data, profitHolder, MaSamplingDays, stopLossThreshold):
         security = data[position.security]
-        current_price = GetCurrentPrice(position.security, context.current_dt)#???这里获取的currentprice竟然有时是0
+        current_price = GetCurrentPrice(position.security, context.current_dt)  # ???这里获取的currentprice竟然有时是0
         if not current_price: current_price = position.price
         Ma = security.mavg(MaSamplingDays, 'close')
-        flow = (position.price - position.avg_cost)/position.avg_cost*100#？？为什么不用current_price来算？
+        flow = (position.price - position.avg_cost) / position.avg_cost * 100  # ？？为什么不用current_price来算？
 
-        if current_price < Ma and flow > DEF_NOISE_AVOID:#破均线并且过滤均线太近造成今天买明天卖的噪声干扰
-            PD(0, '[IsNeedSellOff] Less then Ma[', MaSamplingDays, ']:', position.security,\
-                    'currentPrice',current_price,'position.price',position.price,'costPrice', position.avg_cost,'Ma', Ma)
+        if current_price < Ma and flow > DEF_NOISE_AVOID:  # 破均线并且过滤均线太近造成今天买明天卖的噪声干扰
+            PD(0, '[IsNeedSellOff] Less then Ma[', MaSamplingDays, ']:', position.security, \
+               'currentPrice', current_price, 'position.price', position.price, 'costPrice', position.avg_cost, 'Ma',
+               Ma)
             return True
 
-        if flow < 0 and -flow >=stopLossThreshold:
+        if flow < 0 and -flow >= stopLossThreshold:
             PD(0, '[IsNeedSellOff] Stop loss hit:', flow, position.security)
             return True
-        
+
         profitStatus = profitHolder.get(position.security)
         if profitStatus:
-            return profitStatus.Update(flow, True)#？？这里对应的是哪里
+            return profitStatus.Update(flow, True)  # ？？这里对应的是哪里
 
         return False
 
@@ -535,7 +535,7 @@ class SecurityHandler:
 
     # 根据现金流，动态调整下单的金额，使得下单的金额永远满足大于100单（大于100单才能交易）
     @staticmethod
-    def ClampOrderValue(data, security, desireValue, cash, flow=10):#flow用来做什么？只加20没有用的，甚至会导致交易失败
+    def ClampOrderValue(data, security, desireValue, cash, flow=10):  # flow用来做什么？只加20没有用的，甚至会导致交易失败
         if cash < desireValue:
             PD(2, 'Cash no enough: ', cash, ' Desire order: ', desireValue)
             return desireValue
@@ -634,7 +634,9 @@ class CapitalManager:
             security = position.security
             profitStatus = self.ProfitHolder.get(security)
             if not profitStatus:
-                profitStatus = SecurityProfitStatus(security)
+                profitStatus = SecurityProfitStatus(security, \
+                WaterLine(DEF_PROFIT_LINE_HIGH, False, True), 
+                WaterLine(DEF_PROFIT_LINE_LOW, True, False))
                 self.ProfitHolder[security] = profitStatus
 
         for security in self.ProfitHolder.keys():
@@ -652,7 +654,7 @@ class CapitalManager:
     def TryHoldingOnPosition(self, context, data, desirePosition, isBullish):
         self.UpdateCapital(context)
 
-        if self._currentCapitalPosition > desirePosition and isBullish == False:#??isbullis这里是要什么用意
+        if self._currentCapitalPosition > desirePosition and isBullish == False:  # ??isbullis这里是要什么用意
             self.OnActionBearishHandle(context, data, desirePosition)  # 熊市
         elif self._currentCapitalPosition < desirePosition and isBullish:
             self.OnActionBullishHandle(context, data, desirePosition)  # 牛市
@@ -688,9 +690,10 @@ class CapitalManager:
         # 计算应该需要补多少仓
         fillingPosition = desirePosition - self._currentCapitalPosition
         # 计算该次补仓所需要的资金
-        desireTotalOrderCash = (context.portfolio.capital_used + context.portfolio.cash)/self.CMOption.TotalShare * fillingPosition#这里应该不对
+        desireTotalOrderCash = (
+                               context.portfolio.capital_used + context.portfolio.cash) / self.CMOption.TotalShare * fillingPosition  # 这里应该不对
         # 计算每股的平均资金
-        orderCashPerStock = desireTotalOrderCash / fillingPosition*self.CMOption.SharesPerStock#这里也不对，不是只能开仓两只，是只能开仓两成
+        orderCashPerStock = desireTotalOrderCash / fillingPosition * self.CMOption.SharesPerStock  # 这里也不对，不是只能开仓两只，是只能开仓两成
 
         # 过滤掉已经持有的个股
         backupSecurities = self._securitiesFilter.OnFilterOrderIn(stocks, context.portfolio.positions, context, data)
@@ -712,7 +715,7 @@ class CapitalManager:
             # 如果达到或接近仓位水平
             if IsHit(self._currentCapitalPosition, desirePosition, POSITION_TOLERANCE): break
             # 如果达到开仓数量，而仓位还没有满足要求
-            if openPositionCount >= self.CMOption.TotalOpenPositionPerDay:#？？这里没有break，跟原有的策略本意不同
+            if openPositionCount >= self.CMOption.TotalOpenPositionPerDay:  # ？？这里没有break，跟原有的策略本意不同
                 PD(1, 'Opening position has reached max setting, but capital position still under require:',
                    self._currentCapitalPosition)
 
@@ -724,7 +727,7 @@ class CapitalManager:
                 # 如果下单成功，增加开仓计数器，以保证每天的开仓数量
                 if orderStatus.status == OrderStatus.held:
                     openPositionCount = openPositionCount + 1
-                    PD(0, 'Open new position,new positions:',openPositionCount)
+                    PD(0, 'Open new position,new positions:', openPositionCount)
                 self.UpdateCapital(context)
         self.ActiveProfitMonitor(context.portfolio.positions)
 
@@ -755,15 +758,20 @@ class CapitalManager:
     def OnActionStopLoss(self, positions, context, data):
         PD(0, 'OnActionStopLoss！！！')
 
-        while len(positions) > 0:
-            position = positions[0]
+        # for k, v in self.ProfitHolder.items():
+            # PD(2, k, v.Security, v.HighLimitLine.IsReverse, \
+            # v.LowLimitLine.IsReverse, v.LowLimitLine.Active, \
+            # v.HighLimitLine, v.LowLimitLine)
 
+        # for position in positions:
+            # PD(1, position.security)
+
+        for position in positions:
             if SecurityHandler.IsNeedSellOff(position, context, data, self.ProfitHolder, \
                                              self.CMOption.MaSamplingDaysForStock, self.CMOption.StopLossThreshold):
                 orderStatus = order_target(position.security, 0, MarketOrderStyle())
                 if orderStatus:
                     SecurityHandler.RecordOrder('StopLoss', 'StopLoss', orderStatus)
-            positions.remove(position)
 
     # 无条件清仓
     def OnActionSellOff(self, context):
@@ -806,13 +814,13 @@ class CapitalManager:
 
 
 # 市场信息处理
-class MarketInfoHandler:#？？？看过了没问题
+class MarketInfoHandler:  # ？？？看过了没问题
     _marketInfo = MarketInfo('')  # 大盘信息
     _capitalManager = CapitalManager('', '')  # 资金管理？？例如这里的初始化和下面的初始化函数到底哪个是最后起作用的
 
     PositionIfBreakoutLine1 = DEF_POSITION_IF_MMA_BREAKOUT_LINE1
     PositionIfBreakoutLine2 = DEF_POSITION_IF_MMA_BREAKOUT_LINE2
-    PositionIfFallingdownLine1 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1#????程序并没有对策略的这部分做处理
+    PositionIfFallingdownLine1 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1  # ????程序并没有对策略的这部分做处理
     PositionIfFallingdownLine2 = DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2
 
     def __init__(self, market, capitalManager,
@@ -821,7 +829,7 @@ class MarketInfoHandler:#？？？看过了没问题
                  positionIfFallingdownLine1=DEF_POSITION_IF_MMA_FALLINGDOWN_LINE1, \
                  positionIfFallingdownLine2=DEF_POSITION_IF_MMA_FALLINGDOWN_LINE2):
         if isinstance(market, MarketInfo) and \
-                isinstance(capitalManager, CapitalManager):#为啥这要判断？？？
+                isinstance(capitalManager, CapitalManager):  # 为啥这要判断？？？
             self._marketInfo = market
             self._capitalManager = capitalManager
             self.PositionIfBreakoutLine1 = positionIfBreakoutLine1
@@ -856,6 +864,7 @@ class MarketInfoHandler:#？？？看过了没问题
                         currentMarketPrice >= self._marketInfo.Ma_2:
             PD(1, 'Market prices between MA line1 and line2')
             self._capitalManager.TryHoldingOnPosition(context, data, self.PositionIfBreakoutLine1, True)
+
 
 # 获取个股的市值
 def GetCurrentMarketCap(security, currrentDate):
@@ -922,12 +931,12 @@ def SetupSecurityPool():
 XSHG_info = MarketInfo(DEF_MARKET_INDEX)
 
 # 设置过滤选项
-selectorFilterOption = SecuritiesSelectionFilterOption()#？？为什么要设置在这里？
+selectorFilterOption = SecuritiesSelectionFilterOption()  # ？？为什么要设置在这里？
 orderInOption = SecuritiesOrderInFilterOption()
 capitalManagerOption = CapitalManagerOption()
 
 # 定义全局过滤规则
-SecFilter = SecuritiesFilter(selectorFilterOption, orderInOption)#？？？这样的出来的是什么对于一个类这么处理是怎么个运行步骤，还有一个程序的运行步骤
+SecFilter = SecuritiesFilter(selectorFilterOption, orderInOption)  # ？？？这样的出来的是什么对于一个类这么处理是怎么个运行步骤，还有一个程序的运行步骤
 # 定义全局资金管理
 CapitalMgr = CapitalManager(capitalManagerOption, SecFilter)
 
@@ -945,7 +954,7 @@ def initialize(context):
     run_daily(RefreshMarketInfo, time='before_open')
 
     cashofOneHandPerSecuirty = context.portfolio.starting_cash / capitalManagerOption.TotalShare * capitalManagerOption.SharesPerStock
-    #????这里初始化这个似乎没有用？？是为了处理检验资金吗？
+    # ????这里初始化这个似乎没有用？？是为了处理检验资金吗？
     # 为了使得资金的仓位水平保持良好，要求每手（100一手）买入个股的资金大于500*100
     if cashofOneHandPerSecuirty < 500 * 100:
         log.warn('starting cash less then 100*10000!')
